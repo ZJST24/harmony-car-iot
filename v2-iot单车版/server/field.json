@@ -1,0 +1,73 @@
+{
+  "_comment": "M3 场地坐标系与合规底图配置（2026-11-08）。只存场地元数据，不含任何地图密钥、不含真实敏感坐标。改完后端按 mtime 热加载，无需重启。",
+  "name": "教学场地 A（本地矢量底图）",
+  "logical": {
+    "width": 800,
+    "height": 600,
+    "unit": "px",
+    "origin": "top-left",
+    "y_axis": "down",
+    "north_deg": 0,
+    "_note": "与车端影子上报的 x/y 完全一致：左上角 (0,0)，x 向右、y 向下。north_deg=0 表示画面上方为正北。"
+  },
+  "scale": {
+    "meters_per_unit": 0.025,
+    "_note": "1 逻辑单位 = 2.5 cm，场地 800×600 → 20 m × 15 m。现场用卷尺量一次实际场地后改这里，画面和任务距离会同步换算。"
+  },
+  "geo": {
+    "enabled": false,
+    "calibrated": false,
+    "datum": "GCJ-02",
+    "provider": "tencent",
+    "origin_lng": 0.0,
+    "origin_lat": 0.0,
+    "rotation_deg": 0.0,
+    "_note": "占位示例，绝不是真实位置。需要真实底图时：①用合规服务商（腾讯位置服务/高德/百度/天地图）现场采集场地原点的 GCJ-02 经纬度并填写；②把 calibrated 置 true；③enabled 置 true。未 calibrated 时后端一律不输出经纬度，避免把 (0,0) 误当成真实位置。"
+  },
+  "geofence": {
+    "enabled": true,
+    "margin": 20,
+    "polygon": [[20, 20], [780, 20], [780, 580], [20, 580]],
+    "_note": "安全边界（逻辑坐标）。任务启动前会校验车辆在界内；越界一律拒绝编排，急停不受此限制。"
+  },
+  "zones": [
+    {
+      "id": "standby",
+      "name": "待命区 A",
+      "type": "parking",
+      "points": [[40, 40], [230, 40], [230, 150], [40, 150]]
+    },
+    {
+      "id": "restricted",
+      "name": "禁行区（设备柜）",
+      "type": "restricted",
+      "points": [[340, 240], [470, 240], [470, 360], [340, 360]]
+    },
+    {
+      "id": "lane",
+      "name": "巡检主通道",
+      "type": "lane",
+      "points": [[60, 430], [740, 430], [740, 470], [60, 470]]
+    },
+    {
+      "id": "dock",
+      "name": "充电位",
+      "type": "dock",
+      "points": [[620, 60], [750, 60], [750, 160], [620, 160]]
+    }
+  ],
+  "waypoints": [
+    { "id": "P1", "name": "巡检点 1", "x": 120, "y": 455 },
+    { "id": "P2", "name": "巡检点 2", "x": 400, "y": 455 },
+    { "id": "P3", "name": "巡检点 3", "x": 680, "y": 455 }
+  ],
+  "compliance": {
+    "base_map": "local-vector",
+    "statement": "默认使用本地自绘矢量场地底图，不加载任何在线瓦片，不绘制国界/行政区划等法定地图要素，课堂离线也能演示。",
+    "allowed_providers": ["腾讯位置服务", "高德地图", "百度地图", "天地图"],
+    "prohibited_providers": ["Google Maps", "Apple Maps", "Bing 海外版", "OpenStreetMap 境外瓦片", "Mapbox", "Leaflet + OSM"],
+    "datum": "GCJ-02",
+    "key_rule": "地理底图页 /map 走腾讯地图 GL JS 官方代理模式，页面内不写任何可用 key；若改用自有 key，须在合规平台申请并做域名白名单或后端代理。",
+    "privacy": "车辆位置只在本系统内部使用，不采集、不公开他人位置数据。"
+  }
+}

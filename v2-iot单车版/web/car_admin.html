@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻检车 · B/S 管理台（M4）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+         background: #e8edf4; color: #1f2d3d; min-height: 100vh; padding: 18px 14px 30px;
+         display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  header, .card, #nav, #foot { width: min(1180px, 96vw); }
+  header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header h1 span { font-size: 12px; font-weight: 400; color: #8896a6; margin-left: 8px; }
+  #nav { font-size: 12px; color: #5a6b7f; text-align: right; }
+  #nav a { color: #2f7bd9; text-decoration: none; margin-left: 12px; }
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 2px 10px rgba(31,45,61,.08); padding: 15px; }
+  .card h2 { font-size: 14px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: baseline; gap: 10px; }
+  .card h2 span { font-size: 11.5px; font-weight: 400; color: #8896a6; }
+  .row { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+  input[type=text], input[type=password], input[type=number], select {
+    font-size: 12.5px; padding: 6px 8px; border: 1px solid #ccd6e2; border-radius: 6px;
+    background: #fff; color: #1f2d3d; font-family: inherit;
+  }
+  input:focus, select:focus { outline: none; border-color: #2f7bd9; }
+  .btn { border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 12px;
+         padding: 7px 12px; background: #2f7bd9; color: #fff; }
+  .btn:hover:not(:disabled) { background: #2469bf; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.gray { background: #eef3f9; color: #33475b; }
+  .btn.gray:hover:not(:disabled) { background: #e2eaf4; }
+  .btn.danger { background: #fdecec; color: #c02b2b; }
+  .btn.danger:hover:not(:disabled) { background: #fbdada; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 9px; }
+  .stat { background: #f6f9fc; border-radius: 10px; padding: 10px 12px; }
+  .stat .k { font-size: 11px; color: #8896a6; }
+  .stat .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 3px; }
+  .stat .v.small { font-size: 13px; }
+  #msg { font-size: 12px; line-height: 1.7; margin-top: 9px; color: #5a6b7f; word-break: break-word; }
+  #msg.ok { color: #1c7f4b; } #msg.bad { color: #c02b2b; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { padding: 8px 7px; border-bottom: 1px solid #f0f4f8; text-align: left; vertical-align: middle; }
+  th { color: #8896a6; font-weight: 500; white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  .tblWrap { overflow-x: auto; }
+  .binds { display: flex; gap: 7px; flex-wrap: wrap; max-width: 260px; }
+  .binds label { display: inline-flex; align-items: center; gap: 3px; background: #f6f9fc;
+                 border-radius: 5px; padding: 3px 6px; font-size: 11px; white-space: nowrap; }
+  .tag { font-size: 10.5px; padding: 2px 6px; border-radius: 5px; background: #eef3f9; color: #5a6b7f; }
+  .tag.on { background: #e4f6ec; color: #1c7f4b; } .tag.off { background: #fdecec; color: #c02b2b; }
+  .tag.admin { background: #eaf0fc; color: #2f5fb0; }
+  .mono { font-family: Consolas, monospace; font-size: 11.5px; }
+  .hint { font-size: 11.5px; color: #8896a6; line-height: 1.8; margin-top: 8px; }
+  #loginCard { border-left: 4px solid #2f7bd9; }
+  #adminBody { display: none; width: min(1180px, 96vw); flex-direction: column; gap: 12px; }
+  #reveal { margin-top: 10px; padding: 10px 12px; background: #fff8e6; border: 1px solid #f0dca8;
+            border-radius: 8px; font-size: 12px; line-height: 1.8; display: none; }
+  #reveal code { font-family: Consolas, monospace; background: #fff; padding: 2px 6px;
+                 border: 1px solid #ead9ae; border-radius: 4px; word-break: break-all; }
+  .logLine { font-family: Consolas, monospace; font-size: 11.5px; padding: 4px 0;
+             border-bottom: 1px solid #f6f8fb; word-break: break-all; color: #33475b; }
+  .logLine .t { color: #9aa7b5; margin-right: 8px; }
+  .mLine { font-size: 12px; padding: 7px 0; border-bottom: 1px solid #f4f7fa; line-height: 1.7; }
+  .mLine:last-child { border: none; }
+  .mLine b { font-weight: 600; }
+  .mLine .st { font-weight: 600; margin-left: 6px; }
+  .st.running { color: #2f7bd9; } .st.succeeded { color: #1c7f4b; }
+  .st.failed { color: #c02b2b; } .st.cancelled { color: #c07a12; }
+  #foot { font-size: 12px; color: #9aa7b5; text-align: center; line-height: 1.8; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 900px) { .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛠 寻检车 · B/S 管理台<span>M4 · 身份绑定 / 设备台账 / 严格模式 / 场地标定 / 审计</span></h1>
+  <div class="row"><span id="who" style="font-size:12px;color:#5a6b7f">未登录</span>
+    <button class="btn gray" id="logout" type="button">退出</button></div>
+</header>
+<div id="nav">
+  <a href="console">控制台</a><a href="view">只读俯视图</a><a href="map">合规底图</a>
+</div>
+
+<div class="card" id="loginCard">
+  <h2>管理员登录 <span>所有 /api/admin/* 接口都要求 role=admin 的有效令牌；页面本身公开，令牌只在浏览器保存</span></h2>
+  <div class="row">
+    <input type="password" id="token" spellcheck="false" autocomplete="off"
+           placeholder="粘贴管理员令牌（teacher 账号）" style="flex:1 1 280px;min-width:200px">
+    <button class="btn" id="login" type="button">进入管理台</button>
+    <span style="font-size:11.5px;color:#8896a6">从 server/access.json 取，或用 <span class="mono">access_admin.py list</span> 查看</span>
+  </div>
+  <div id="msg">提示：管理台改的是后端 access.json / devices.json / field.json，后端按文件 mtime 热加载，改完下一请求立即生效。</div>
+</div>
+
+<div id="adminBody">
+
+  <div class="card">
+    <h2>总览 <span id="ovTime">—</span></h2>
+    <div class="grid" id="stats"></div>
+    <div class="row" style="margin-top:12px">
+      <label style="font-size:12.5px;display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="strictChk"> 严格模式（require_token）：所有接口必须带有效令牌
+      </label>
+      <button class="btn" id="strictSave" type="button">应用</button>
+      <span class="hint" style="margin:0">开启前请确认控制台与 APP 已配置令牌，否则旧客户端会被 401 拦下。</span>
+    </div>
+    <div id="reveal"></div>
+  </div>
+
+  <div class="card">
+    <h2>账号与「用户 ↔ 车」绑定关系 <span>可控制权由服务端逐次裁决；这里改的是授权边界，不是界面显示</span></h2>
+    <div class="tblWrap"><table id="userTbl"></table></div>
+    <div class="hint">绑定勾选用的是设备台账里的真实 device_id；<span class="mono">*</span> 表示全部车辆。role=viewer 只读；scope=bound 只能看见自己绑定的车。</div>
+    <div class="row" style="margin-top:12px;border-top:1px solid #eef2f7;padding-top:12px">
+      <b style="font-size:12.5px">新增账号</b>
+      <input type="text" id="nuUser" placeholder="账号名（字母/数字）" style="width:140px">
+      <input type="text" id="nuName" placeholder="显示名称" style="width:120px">
+      <select id="nuRole"><option value="operator">operator</option><option value="viewer">viewer</option><option value="admin">admin</option></select>
+      <select id="nuScope"><option value="all">可见全部</option><option value="bound">仅绑定车</option></select>
+      <button class="btn" id="nuAdd" type="button">创建（返回一次性令牌）</button>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>设备台账 <span>停用后该设备所有接口立即拒绝</span></h2>
+      <div class="tblWrap"><table id="devTbl"></table></div>
+    </div>
+
+    <div class="card">
+      <h2>场地坐标标定 <span>M3 · GCJ-02</span></h2>
+      <div class="row" id="fieldForm">
+        <label style="font-size:12px">1 单位 = <input type="number" id="fMpu" step="0.001" min="0.001" max="10" style="width:90px"> m</label>
+        <label style="font-size:12px"><input type="checkbox" id="fFence"> 安全边界</label>
+        <label style="font-size:12px">内缩 <input type="number" id="fMargin" step="1" min="0" max="200" style="width:70px"> px</label>
+        <label style="font-size:12px">原点经度 <input type="number" id="fLng" step="0.000001" style="width:120px"></label>
+        <label style="font-size:12px">原点纬度 <input type="number" id="fLat" step="0.000001" style="width:120px"></label>
+        <label style="font-size:12px">方位角 <input type="number" id="fRot" step="1" style="width:70px"> °</label>
+        <label style="font-size:12px"><input type="checkbox" id="fCalib"> 已现场校准</label>
+        <label style="font-size:12px"><input type="checkbox" id="fGeo"> 启用地理坐标</label>
+        <button class="btn" id="fieldSave" type="button">保存场地配置</button>
+      </div>
+      <div class="hint" id="fieldInfo">读取中…</div>
+      <div class="hint">未勾选「已现场校准」时，后端一律不输出经纬度，/map 页也不会打点。真实基准点请用合规服务商（腾讯位置服务 / 高德 / 百度 / 天地图）现场采集 GCJ-02 坐标。</div>
+    </div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>任务监控 <span>M3 · 可取消并急停</span></h2>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn gray" id="misRefresh" type="button">刷新</button>
+        <button class="btn danger" id="misAbort" type="button">一键全停</button>
+      </div>
+      <div id="misList"></div>
+    </div>
+
+    <div class="card">
+      <h2>审计日志 <span>commands.log 尾部（含越权 403 与 [ADMIN] 操作）</span></h2>
+      <div class="row" style="margin-bottom:8px">
+        <button class="btn gray" id="logRefresh" type="button">刷新</button>
+        <select id="logLimit"><option value="30">最近 30 条</option><option value="60" selected>最近 60 条</option><option value="150">最近 150 条</option></select>
+      </div>
+      <div id="logList" style="max-height:260px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<div id="foot">
+  管理台只改业务台账（access.json / devices.json / field.json），不接触 AK/SK 与 AI 密钥；所有写操作原子替换并写审计。<br>
+  交作业前请轮换并清理演示令牌，别把明文 token 提交仓库。
+</div>
+
+<script>
+"use strict";
+var $ = function (id) { return document.getElementById(id); };
+var KEY = "carAdminToken";
+var devices = [], users = [], actor = null, lastLoginOk = false;
+
+function token() { try { return sessionStorage.getItem(KEY) || ""; } catch (e) { return ""; } }
+function saveToken(t) {
+  try { if (t) sessionStorage.setItem(KEY, t); else sessionStorage.removeItem(KEY); } catch (e) {}
+}
+function esc(s) {
+  return String(s === undefined || s === null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function setMsg(text, kind) {
+  var el = $("msg"); el.textContent = text; el.className = kind || "";
+}
+function api(path, opts, method, body) {
+  opts = opts || {};
+  opts.method = method || opts.method || "GET";
+  opts.headers = Object.assign({}, opts.headers || {}, { "X-Auth-Token": token() });
+  if (body !== undefined) {
+    opts.headers["Content-Type"] = "application/json";
+    opts.body = JSON.stringify(body);
+  }
+  return fetch(path, opts).then(function (r) {
+    return r.json().then(function (j) {
+      if (!r.ok || j.ok === false) throw new Error(j.error || ("HTTP " + r.status));
+      return j;
+    }).catch(function (e) {
+      if (e instanceof SyntaxError) throw new Error("HTTP " + r.status + "（响应不是 JSON）");
+      throw e;
+    });
+  });
+}
+function reveal(title, tok, hint) {
+  var el = $("reveal");
+  el.style.display = "block";
+  el.innerHTML = "<b>" + esc(title) + "</b>：<code>" + esc(tok) + "</code><br>" + esc(hint || "");
+}
+function shortId(id) { return String(id || "").slice(-9); }
+
+// ------------------------------------------------------------ 总览
+function loadOverview() {
+  return api("/api/admin/overview").then(function (j) {
+    actor = j.actor;
+    $("who").textContent = "已登录：" + actor.name + "（" + actor.role + "）";
+    $("ovTime").textContent = "刷新于 " + new Date().toLocaleTimeString();
+    var c = j.counts, f = j.field;
+    var items = [
+      ["鉴权", j.auth_enabled ? "已启用" : "未启用"],
+      ["严格模式", j.require_token ? "开启" : "关闭（兼容）"],
+      ["账号", c.users], ["登记设备", c.devices],
+      ["启用设备", c.enabled_devices], ["在线", c.online],
+      ["运行中任务", c.running_missions],
+      ["场地", f.width_m + " × " + f.height_m + " m"],
+      ["地理标定", f.geo_ready ? "已校准" : "未校准"],
+      ["安全边界", f.geofence ? "开启" : "关闭"]
+    ];
+    $("stats").innerHTML = items.map(function (p) {
+      return '<div class="stat"><div class="k">' + esc(p[0]) + '</div><div class="v small">' +
+             esc(p[1]) + "</div></div>";
+    }).join("");
+    $("strictChk").checked = !!j.require_token;
+    $("fieldInfo").innerHTML = "<b>" + esc(f.name) + "</b> · 1 单位 = " + f.meters_per_unit +
+      " m · " + (f.geo_ready ? "GCJ-02 已校准" : "未校准，不输出经纬度") +
+      "<br>" + esc(f.statement || "");
+    return j;
+  });
+}
+
+// ------------------------------------------------------------ 账号表
+function bindBoxes(u) {
+  var html = '<label title="全部车辆"><input type="checkbox" class="bind" value="*"' +
+             (u.devices.indexOf("*") >= 0 ? " checked" : "") + "> 全部</label>";
+  devices.forEach(function (d, i) {
+    html += '<label title="' + esc(d.device_id) + '"><input type="checkbox" class="bind" value="' +
+            esc(d.device_id) + '"' + (u.devices.indexOf(d.device_id) >= 0 ? " checked" : "") +
+            "> " + esc(d.name || shortId(d.device_id)) + "</label>";
+  });
+  return '<div class="binds">' + html + "</div>";
+}
+
+function renderUsers() {
+  var html = "<tr><th>账号</th><th>名称</th><th>角色</th><th>可见</th><th>令牌</th>" +
+             "<th>可控制车辆（绑定关系）</th><th>启用</th><th>操作</th></tr>";
+  users.forEach(function (u) {
+    html += '<tr data-user="' + esc(u.user) + '">' +
+      '<td class="mono">' + esc(u.user) + "</td>" +
+      '<td><input type="text" class="f-name" value="' + esc(u.name) + '" style="width:96px"></td>' +
+      '<td><select class="f-role">' + ["admin", "operator", "viewer"].map(function (r) {
+        return '<option value="' + r + '"' + (u.role === r ? " selected" : "") + ">" + r + "</option>";
+      }).join("") + "</select></td>" +
+      '<td><select class="f-scope"><option value="all"' + (u.scope === "all" ? " selected" : "") +
+        ">全部</option><option value=\"bound\"" + (u.scope === "bound" ? " selected" : "") +
+        ">仅绑定</option></select></td>" +
+      '<td class="mono">' + esc(u.token_mask) + "</td>" +
+      "<td>" + bindBoxes(u) + "</td>" +
+      '<td><input type="checkbox" class="f-enabled"' + (u.enabled ? " checked" : "") + "></td>" +
+      '<td><div class="row" style="flex-wrap:nowrap;gap:5px">' +
+        '<button class="btn gray act-save">保存</button>' +
+        '<button class="btn gray act-rotate">轮换</button>' +
+        '<button class="btn danger act-del">删除</button></div></td></tr>';
+  });
+  $("userTbl").innerHTML = html;
+
+  Array.prototype.forEach.call($("userTbl").querySelectorAll("tr[data-user]"), function (tr) {
+    var user = tr.dataset.user;
+    var body = function () {
+      return {
+        name: tr.querySelector(".f-name").value.trim(),
+        role: tr.querySelector(".f-role").value,
+        scope: tr.querySelector(".f-scope").value,
+        enabled: tr.querySelector(".f-enabled").checked,
+        devices: Array.prototype.map.call(tr.querySelectorAll(".bind:checked"), function (x) { return x.value; })
+      };
+    };
+    tr.querySelector(".act-save").addEventListener("click", function () {
+      api("/api/admin/users/" + encodeURIComponent(user), {}, "PATCH", body())
+        .then(function () { setMsg("✓ 已保存 " + user + " 的绑定关系，后端热加载立即生效", "ok"); loadAll(); })
+        .catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+    });
+    tr.querySelector(".act-rotate").addEventListener("click", function () {
+      api("/api/admin/users/" + encodeURIComponent(user) + "/rotate", {}, "POST")
+        .then(function (j) {
+          reveal("已轮换 " + user + " 的令牌", j.user.token, j.hint + "；旧令牌立即失效。");
+          setMsg("✓ 令牌已轮换（完整值已在上方一次性显示）", "ok");
+          loadUsers();
+        })
+        .catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+    });
+    tr.querySelector(".act-del").addEventListener("click", function () {
+      if (!window.confirm("确定删除账号 " + user + "？该操作不可撤销。")) return;
+      api("/api/admin/users/" + encodeURIComponent(user), {}, "DELETE")
+        .then(function () { setMsg("✓ 已删除 " + user, "ok"); loadAll(); })
+        .catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+    });
+  });
+}
+
+function loadUsers() {
+  return api("/api/admin/users").then(function (j) {
+    users = j.users || [];
+    devices = j.device_options || [];
+    renderUsers();
+    renderDevices(devices);
+  });
+}
+
+// ------------------------------------------------------------ 设备表
+function renderDevices(list) {
+  var html = "<tr><th>设备</th><th>名称</th><th>分组</th><th>状态</th><th>操作</th></tr>";
+  list.forEach(function (d) {
+    html += '<tr data-dev="' + esc(d.device_id) + '">' +
+      '<td class="mono" title="' + esc(d.device_id) + '">…' + esc(shortId(d.device_id)) + "</td>" +
+      '<td><input type="text" class="d-name" value="' + esc(d.name || "") + '" style="width:90px"></td>' +
+      '<td><input type="text" class="d-group" value="' + esc(d.group || "") + '" style="width:80px"></td>' +
+      '<td><input type="checkbox" class="d-enabled"' + (d.enabled !== false ? " checked" : "") + "></td>" +
+      '<td><button class="btn gray d-save">保存</button></td></tr>';
+  });
+  $("devTbl").innerHTML = html;
+  Array.prototype.forEach.call($("devTbl").querySelectorAll("tr[data-dev]"), function (tr) {
+    tr.querySelector(".d-save").addEventListener("click", function () {
+      api("/api/admin/devices/" + encodeURIComponent(tr.dataset.dev), {}, "PATCH", {
+        name: tr.querySelector(".d-name").value.trim(),
+        group: tr.querySelector(".d-group").value.trim(),
+        enabled: tr.querySelector(".d-enabled").checked
+      }).then(function () { setMsg("✓ 设备台账已更新并热加载", "ok"); loadAll(); })
+        .catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+    });
+  });
+}
+
+// ------------------------------------------------------------ 场地
+function loadField() {
+  return api("/api/admin/field").then(function (j) {
+    var f = j.field || {}, raw = j.raw || {};
+    var geo = f.geo || {}, gf = raw.geofence || {};
+    $("fMpu").value = (raw.scale || {}).meters_per_unit || 0.025;
+    $("fFence").checked = !!gf.enabled;
+    $("fMargin").value = gf.margin === undefined ? 0 : gf.margin;
+    $("fLng").value = geo.origin_lng === null || geo.origin_lng === undefined ? "" : geo.origin_lng;
+    $("fLat").value = geo.origin_lat === null || geo.origin_lat === undefined ? "" : geo.origin_lat;
+    $("fRot").value = geo.rotation_deg || 0;
+    $("fCalib").checked = !!geo.calibrated;
+    $("fGeo").checked = !!geo.enabled;
+  });
+}
+
+// ------------------------------------------------------------ 任务 / 审计
+var MCN = { pending: "等待启动", running: "执行中", cancelling: "取消中",
+            succeeded: "已完成", failed: "失败", cancelled: "已取消" };
+function loadMissions() {
+  return api("/api/admin/missions").then(function (j) {
+    var list = j.missions || [];
+    if (!list.length) { $("misList").innerHTML = '<div class="hint">还没有任务。</div>'; return; }
+    $("misList").innerHTML = list.slice(0, 8).map(function (m) {
+      var live = ["pending", "running", "cancelling"].indexOf(m.state) >= 0;
+      return '<div class="mLine"><b>' + esc(m.name) + "</b> <span class=\"mono\">" + esc(m.id) +
+        "</span> · " + esc(shortId(m.device_id)) + " · 发起 " + esc(m.actor) +
+        '<span class="st ' + m.state + '">' + (MCN[m.state] || m.state) + "</span> · " +
+        m.index + "/" + m.total_steps + " 步 · 轨迹 " + (m.trail || []).length + " 点" +
+        (m.error ? '<br><span style="color:#c02b2b">' + esc(m.error) + "</span>" : "") +
+        (live ? ' <button class="btn danger mis-cancel" data-mid="' + esc(m.id) + '">取消 / 急停</button>' : "") +
+        "</div>";
+    }).join("");
+    Array.prototype.forEach.call($("misList").querySelectorAll(".mis-cancel"), function (b) {
+      b.addEventListener("click", function () {
+        api("/api/admin/missions/" + encodeURIComponent(b.dataset.mid) + "/cancel", {}, "POST")
+          .then(function () { setMsg("✓ 已请求取消并下发急停", "ok"); loadMissions(); })
+          .catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+      });
+    });
+  });
+}
+
+function loadAudit() {
+  var n = $("logLimit").value;
+  return api("/api/admin/audit?limit=" + n).then(function (j) {
+    $("logList").innerHTML = (j.lines || []).map(function (l) {
+      return '<div class="logLine"><span class="t">' + esc(l.time) + "</span>" + esc(l.message) + "</div>";
+    }).join("") || '<div class="hint">暂无日志。</div>';
+  });
+}
+
+function loadAll() {
+  return Promise.all([loadOverview(), loadUsers(), loadField(), loadMissions(), loadAudit()])
+    .then(function () { lastLoginOk = true; setMsg("✓ 已同步后端台账", "ok"); })
+    .catch(function (e) {
+      lastLoginOk = false;
+      setMsg("✗ " + e.message + "（令牌无效或不是 admin？请在上方重新登录）", "bad");
+      if (/403|401|需要管理员|鉴权未启用/.test(e.message)) {
+        $("adminBody").style.display = "none";
+        $("loginCard").style.display = "block";
+      }
+    });
+}
+
+// ------------------------------------------------------------ 事件
+$("login").addEventListener("click", function () {
+  var t = $("token").value.trim();
+  if (!t) { setMsg("请先粘贴管理员令牌", "bad"); return; }
+  saveToken(t);
+  setMsg("正在校验管理员身份…", "");
+  loadAll().then(function () {
+    if (!lastLoginOk) return;
+    $("adminBody").style.display = "flex";
+    $("loginCard").style.display = "none";
+    $("reveal").style.display = "none";
+  });
+});
+$("token").addEventListener("keydown", function (e) { if (e.key === "Enter") $("login").click(); });
+$("logout").addEventListener("click", function () {
+  saveToken("");
+  $("adminBody").style.display = "none";
+  $("loginCard").style.display = "block";
+  $("token").value = "";
+  $("who").textContent = "未登录";
+  setMsg("已退出管理台。", "");
+});
+$("strictSave").addEventListener("click", function () {
+  api("/api/admin/strict", {}, "POST", { require_token: $("strictChk").checked })
+    .then(function (j) {
+      setMsg("✓ 严格模式已" + (j.require_token ? "开启" : "关闭") + "。" + j.hint, "ok");
+      loadOverview();
+    }).catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+});
+$("nuAdd").addEventListener("click", function () {
+  var body = {
+    user: $("nuUser").value.trim(), name: $("nuName").value.trim(),
+    role: $("nuRole").value, scope: $("nuScope").value, devices: []
+  };
+  if (!body.user) { setMsg("请填写账号名", "bad"); return; }
+  api("/api/admin/users", {}, "POST", body)
+    .then(function (j) {
+      reveal("新账号 " + j.user.user + " 的令牌", j.user.token, j.hint + " 之后可在本表勾选绑定车辆。");
+      setMsg("✓ 账号已创建，令牌仅显示这一次", "ok");
+      $("nuUser").value = ""; $("nuName").value = "";
+      loadAll();
+    }).catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+});
+$("fieldSave").addEventListener("click", function () {
+  var body = {
+    meters_per_unit: Number($("fMpu").value),
+    geofence_enabled: $("fFence").checked,
+    geofence_margin: Number($("fMargin").value),
+    rotation_deg: Number($("fRot").value),
+    calibrated: $("fCalib").checked,
+    enabled: $("fGeo").checked
+  };
+  if ($("fLng").value !== "") body.origin_lng = Number($("fLng").value);
+  if ($("fLat").value !== "") body.origin_lat = Number($("fLat").value);
+  api("/api/admin/field", {}, "PATCH", body)
+    .then(function () { setMsg("✓ 场地配置已保存并热加载", "ok"); loadAll(); })
+    .catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+});
+$("misRefresh").addEventListener("click", loadMissions);
+$("logRefresh").addEventListener("click", loadAudit);
+$("misAbort").addEventListener("click", function () {
+  if (!window.confirm("一键全停会取消所有进行中的任务并逐台下发 STOP，确定继续？")) return;
+  api("/api/admin/abort_all", {}, "POST")
+    .then(function (j) { setMsg("✓ 已取消 " + j.count + " 个任务并下发急停", "ok"); loadMissions(); })
+    .catch(function (e) { setMsg("✗ " + e.message, "bad"); });
+});
+
+if (token()) {
+  $("token").placeholder = "已保存管理员令牌（重新粘贴可覆盖）";
+  setMsg("检测到已保存的令牌，正在自动登录…", "");
+  loadAll().then(function () {
+    if (!lastLoginOk) return;
+    $("adminBody").style.display = "flex";
+    $("loginCard").style.display = "none";
+  });
+}
+setInterval(function () {
+  if (!token() || $("adminBody").style.display === "none") return;
+  loadOverview().catch(function () {});
+  loadMissions().catch(function () {});
+}, 5000);
+</script>
+</body>
+</html>

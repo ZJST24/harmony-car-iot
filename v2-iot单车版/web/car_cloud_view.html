@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IoT-Stage 寻检车云俯视图（多车）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    background: #e8edf4; color: #1f2d3d;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px;
+    gap: 14px;
+  }
+  header {
+    width: min(860px, 96vw);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  header h1 { font-size: 18px; color: #1f2d3d; font-weight: 600; }
+  header h1 span { font-size: 12px; font-weight: 400; color: #8896a6; margin-left: 8px; }
+  #right { display: flex; align-items: center; gap: 10px; }
+  #backend {
+    font-size: 13px; padding: 4px 8px; border: 1px solid #ccd6e2;
+    border-radius: 6px; width: 220px; color: #1f2d3d; background: #fff;
+  }
+  #connBadge { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #5a6b7f; }
+  #whoLabel { font-size: 12px; color: #5a6b7f; white-space: nowrap; }
+  #whoLabel.bad { color: #c02b2b; }
+  #connDot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #b0b9c4; transition: background .2s;
+  }
+  #connDot.on { background: #22a35c; box-shadow: 0 0 6px rgba(34,163,92,.6); }
+  #connDot.warn { background: #d99a2e; box-shadow: 0 0 6px rgba(217,154,46,.6); }
+  #connDot.err { background: #d64545; box-shadow: 0 0 6px rgba(214,69,69,.5); }
+  #stage, #hud, #fleetCard {
+    width: min(860px, 96vw);
+    background: #ffffff;
+    border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(31,45,61,.08);
+    padding: 16px;
+  }
+  canvas { width: 100%; height: auto; display: block; border-radius: 8px; }
+  #hud {
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px 18px;
+  }
+  .cell { text-align: center; min-width: 90px; }
+  .cell .k { font-size: 12px; color: #8896a6; margin-bottom: 4px; }
+  .cell .v { font-size: 20px; font-weight: 600; color: #1f2d3d; font-variant-numeric: tabular-nums; }
+  .cell .v.small { font-size: 14px; }
+  .cell .v.stale { color: #c07a12; }
+
+  /* ---------- 车队状态表（只读） ---------- */
+  #fleetCard { padding: 0; overflow: hidden; }
+  #fleetHead {
+    padding: 12px 16px; border-bottom: 1px solid #eef2f7;
+    display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  }
+  #fleetHead b { font-size: 14px; font-weight: 600; }
+  #fleetHead span { font-size: 12px; color: #9aa7b5; }
+  #fleetList { font-size: 12.5px; }
+  .fleetRow {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 10px 16px; border-bottom: 1px solid #f4f7fa;
+    font-variant-numeric: tabular-nums;
+  }
+  .fleetRow:last-child { border-bottom: none; }
+  .fleetRow .swatch { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+  .fleetRow .nm { font-weight: 600; min-width: 72px; }
+  .fleetRow .kv { color: #5a6b7f; }
+  .fleetRow .st-on { color: #1c7f4b; font-weight: 600; }
+  .fleetRow .st-off { color: #c07a12; font-weight: 600; }
+  .fleetRow .st-na { color: #9aa7b5; }
+  .fleetRow .err { color: #c02b2b; word-break: break-all; }
+  .empty { padding: 16px; color: #9aa7b5; font-size: 12.5px; }
+  #footerTip { font-size: 12px; color: #9aa7b5; text-align: center; line-height: 1.8; width: min(860px, 96vw); }
+  /* ---------- M3 只读任务进度 / 场地说明 ---------- */
+  #nav { width: min(860px, 96vw); font-size: 12px; color: #5a6b7f; text-align: right; }
+  #nav a { color: #2f7bd9; text-decoration: none; margin-left: 12px; }
+  #missionCard, #fieldNote { width: min(860px, 96vw); background: #fff; border-radius: 14px;
+    box-shadow: 0 2px 10px rgba(31,45,61,.08); }
+  #missionCard { padding: 12px 16px; font-size: 12.5px; }
+  #missionCard b { font-size: 13px; }
+  #missionCard .mline { margin-top: 7px; color: #5a6b7f; line-height: 1.7; }
+  #missionCard .state { font-weight: 600; color: #2f7bd9; }
+  #missionCard .state.succeeded { color: #1c7f4b; }
+  #missionCard .state.failed { color: #c02b2b; }
+  #fieldNote { padding: 10px 16px; font-size: 11.5px; color: #8896a6; line-height: 1.7; }
+  #fieldNote b { color: #5a6b7f; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>☁️ 寻检车 · 云俯视图<span>只读观察端 · 全部登记车辆同屏</span></h1>
+    <div id="right">
+      <span id="whoLabel">身份：访客</span>
+      <input id="backend" spellcheck="false" title="业务后端地址">
+      <div id="connBadge"><span id="connDot"></span><span id="connText">等待数据…</span></div>
+    </div>
+  </header>
+
+  <div id="nav">
+    只读观察端 · M3 场地坐标映射已就绪
+    <a href="map">合规底图</a><a href="admin">管理台</a><a href="console">控制台</a>
+  </div>
+
+  <div id="stage">
+    <canvas id="field" width="800" height="600"></canvas>
+  </div>
+
+  <div id="hud">
+    <div class="cell"><div class="k">登记车辆</div><div class="v" id="htotal">--</div></div>
+    <div class="cell"><div class="k">在线</div><div class="v" id="hon">--</div></div>
+    <div class="cell"><div class="k">行驶中</div><div class="v" id="hmove">--</div></div>
+    <div class="cell"><div class="k">最低电量</div><div class="v" id="hbat">--</div></div>
+    <div class="cell"><div class="k">最旧影子上报</div><div class="v small" id="hage">--</div></div>
+    <div class="cell"><div class="k">本次刷新</div><div class="v small" id="hms">--</div></div>
+  </div>
+
+  <div id="fleetCard">
+    <div id="fleetHead">
+      <b>车队状态</b>
+      <span>每台车一行 · 数据来自设备影子 · 本页不提供任何控制按钮</span>
+    </div>
+    <div id="fleetList"><div class="empty">正在读取设备台账…</div></div>
+  </div>
+
+  <div id="missionCard">
+    <b>🧭 任务进度（只读）</b>
+    <div class="mline" id="missionLine">读取任务状态…</div>
+  </div>
+
+  <div id="fieldNote">场地底图：加载中…</div>
+
+  <div id="footerTip">
+    浏览器为「只看不控」观察端 · 轮询业务后端 <b>/fleet_status</b>（每 2 秒，服务端并发 + 短缓存）· 数据源：华为云设备影子（运动时 5 秒一报）<br>
+    身份令牌沿用控制台保存的那一份（同源共享），本页不提供输入框也不下发任何命令；可见车辆由服务端按身份裁剪<br>
+    实心车 = 本地航位推算（按速度与朝向外推），细圈 = 最近一次影子上报位置 · 离线车半透明，影子是历史值
+  </div>
+
+<script src="field.js"></script>
+<script>
+"use strict";
+
+// ================================================================
+// 与 lab01 car_view.html 的对比点（课堂讲解用）：
+//   1. 数据源：WS 推送(100ms) -> HTTP 轮询(2s)，因为云上最新数据就是影子(5s 一报)
+//   2. 位置平滑：两次影子更新之间做「航位推算」——按 speed/heading 本地外推
+//      （无人车/游戏联机的经典补偿技术，漂移由下一次影子更新自动校正）
+//   3. 在线判定：三态徽标——绿=全在线 / 黄=有车离线 / 灰=后端不通
+//   4. 多车：一次 /fleet_status 拿全部车，每车独立影子/推算/轨迹/专属色
+//   5. 「影子更新距今」用影子的 event_time(UTC)，不是"距上次轮询多久"
+//      （后者永远接近 0 秒前，会掩盖设备其实已经离线几小时）
+// ================================================================
+
+var POLL_MS = 2000;
+var FIELD_W = 800, FIELD_H = 600;
+var TRAIL_MAX = 120, TRAIL_TICK_MS = 250;
+var VEL = 0.2;                  // 与车端一致：每秒位移 = speed * 0.2 px
+var PALETTE = [
+  { hex: "#2f7bd9", rgb: [47, 123, 217] },
+  { hex: "#e07a2f", rgb: [224, 122, 47] },
+  { hex: "#1c9b6c", rgb: [28, 155, 108] },
+  { hex: "#8b5cc7", rgb: [139, 92, 199] },
+  { hex: "#c74b7a", rgb: [199, 75, 122] },
+  { hex: "#1596a8", rgb: [21, 150, 168] }
+];
+
+var $ = function (id) { return document.getElementById(id); };
+var backendInput = $("backend");
+var canvas = $("field"), ctx = canvas.getContext("2d");
+
+// 每台车独立持有：shadow = 最近一次云上报（权威值）、car = 推算后的显示值
+var fleet = [];
+var fleetMode = "single";       // single = 旧后端无 /devices，退回单车视角
+var batchMode = true;           // /fleet_status 404 时退回逐台 /status
+var backendOk = null, lastTrailAt = 0, lastElapsed = null;
+
+// 同源优先：避免 localhost / 127.0.0.1 混用产生跨源；file:// 双击时回落本机 8000
+(function () {
+  if (location.protocol === "http:" || location.protocol === "https:") backendInput.value = location.origin;
+  else backendInput.value = "http://127.0.0.1:8000";
+})();
+
+function baseUrl() { return backendInput.value.trim().replace(/\/+$/, ""); }
+function api(path) { return (baseUrl() || "") + path; }
+
+// ---------------- M2 身份（只读端不提供输入框，复用控制台保存的令牌） ----------------
+var AUTH_KEY = "carAuthToken";
+var authBlocked = false;
+function authToken() {
+  try { return localStorage.getItem(AUTH_KEY) || ""; } catch (e) { return ""; }
+}
+function apiFetch(url, opts) {
+  opts = opts || {};
+  var t = authToken();
+  if (t) {
+    var h = Object.assign({}, opts.headers || {});
+    h["X-Auth-Token"] = t;
+    opts.headers = h;
+  }
+  return fetch(url, opts).then(function (r) {
+    authBlocked = (r.status === 401 || r.status === 403);
+    if (authBlocked) {
+      $("whoLabel").className = "bad";
+      $("whoLabel").textContent = "身份校验未通过（401 / 403）";
+    }
+    return r;
+  });
+}
+function setWho(a) {
+  if (authBlocked) return;
+  var el = $("whoLabel");
+  el.className = "";
+  el.textContent = a ? "身份：" + a.name + "（可控制 " + a.can_control.length + " 台）"
+                     : "身份：访客 / 旧后端";
+}
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// ---------------- 台账 / 状态容器 ----------------
+function makeCarState(d, idx) {
+  var p = PALETTE[idx % PALETTE.length];
+  return {
+    id: d.device_id || "",
+    name: d.name || d.device_id || "默认车",
+    color: p.hex, rgb: p.rgb,
+    shadow: null, car: null, shadowMarker: null, trail: [],
+    online: null, err: ""
+  };
+}
+
+function loadDevices() {
+  apiFetch(api("/devices"), { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("no registry"); return r.json(); })
+    .then(function (j) {
+      if (!j.ok || !j.devices || !j.devices.length) throw new Error("empty registry");
+      setWho(j.actor);                        // M2：显示当前身份（不含 token）
+      var enabled = j.devices.filter(function (d) { return d.enabled; });
+      if (!enabled.length) throw new Error("no enabled device");
+      fleet = enabled.map(makeCarState);
+      fleetMode = "fleet";
+      poll();
+    })
+    .catch(function () {
+      if (authBlocked) return;                // 身份被拒：别误显示成"后端不通 / 单车模式"
+      setWho(null);
+      fleetMode = "single";
+      fleet = [makeCarState({ device_id: "", name: "默认车" }, 0)];
+      poll();
+    });
+}
+
+// ---------------- 轮询 ----------------
+function poll() {
+  if (fleetMode === "single") return pollSingle();
+  if (batchMode) return pollBatch();
+  return pollEach();
+}
+
+function pollSingle() {
+  apiFetch(api("/status"), { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (st) { ingest([Object.assign({ device_id: "" }, st)], null); })
+    .catch(failAll);
+}
+
+function pollBatch() {
+  apiFetch(api("/fleet_status"), { cache: "no-store" })
+    .then(function (r) {
+      if (r.status === 404) { batchMode = false; pollEach(); return null; }
+      return r.json();
+    })
+    .then(function (j) {
+      if (!j) return;
+      if (!j.ok || !j.devices) throw new Error(j.error || "批量状态返回异常");
+      if (j.actor) setWho(j.actor);
+      ingest(j.devices, j.elapsed_ms);
+    })
+    .catch(failAll);
+}
+
+function pollEach() {
+  var reqs = fleet.map(function (s) {
+    var qs = s.id ? "?device_id=" + encodeURIComponent(s.id) : "";
+    return apiFetch(api("/status" + qs), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (st) { return Object.assign({ device_id: s.id }, st); })
+      .catch(function (e) { return { device_id: s.id, ok: false, error: e.message }; });
+  });
+  Promise.all(reqs).then(function (states) { ingest(states, null); });
+}
+
+function ingest(states, elapsedMs) {
+  var receivedAt = performance.now();
+  var byId = {};
+  states.forEach(function (st) { byId[st.device_id || ""] = st; });
+  backendOk = true;
+  lastElapsed = elapsedMs;
+  fleet.forEach(function (s) {
+    var st = byId[s.id];
+    if (!st || !st.ok || st.x === null || st.x === undefined) {
+      s.online = false;
+      s.err = (st && st.error) || "暂无状态";
+      return;                       // 保留上一帧，一台车失败不该让其它车消失
+    }
+    s.err = "";
+    s.online = !!st.online;
+    s.shadow = { x: st.x, y: st.y, heading: st.heading, speed: st.speed,
+                 battery: st.battery, at: receivedAt,
+                 reportedAt: parseShadowTime(st.time) };
+    if (!s.car) s.car = { x: st.x, y: st.y, heading: st.heading, speed: st.speed, battery: st.battery };
+    else { s.car.heading = st.heading; s.car.speed = st.speed; s.car.battery = st.battery; }
+    s.shadowMarker = { x: st.x, y: st.y };
+  });
+  setConn();
+  updateHud();
+  renderFleetList();
+}
+
+function failAll() {
+  if (authBlocked) return;
+  backendOk = false;
+  fleet.forEach(function (s) { s.online = null; s.err = "后端不通"; });
+  setConn();
+  renderFleetList();
+}
+
+// ---------------- 影子上报时间 ----------------
+function parseShadowTime(s) {
+  if (!s) return null;
+  var m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(s);
+  if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  var d = Date.parse(s);
+  return isNaN(d) ? null : d;
+}
+function fmtAge(sec) {
+  if (sec < 60) return sec + " 秒前";
+  if (sec < 3600) return Math.floor(sec / 60) + " 分钟前";
+  if (sec < 86400) return Math.floor(sec / 3600) + " 小时前";
+  return Math.floor(sec / 86400) + " 天前";
+}
+function ageOf(s) {
+  if (!s.shadow) return null;
+  if (s.shadow.reportedAt === null || s.shadow.reportedAt === undefined) return null;
+  return Math.max(0, Math.round((Date.now() - s.shadow.reportedAt) / 1000));
+}
+function ageText(s) {
+  var a = ageOf(s);
+  return a === null ? "未知" : fmtAge(a);
+}
+
+// ---------------- 徽标 / 车队汇总 HUD ----------------
+function setConn() {
+  var dot = $("connDot"), text = $("connText");
+  if (authBlocked) { dot.className = "err"; text.textContent = "身份校验未通过"; return; }
+  if (backendOk === false) { dot.className = "err"; text.textContent = "后端不通"; return; }
+  var on = fleet.filter(function (s) { return s.online === true; }).length;
+  if (fleetMode === "single") {
+    dot.className = on === 1 ? "on" : "warn";
+    text.textContent = on === 1 ? "车在线" : "车离线（影子是历史值）";
+    return;
+  }
+  if (on === 0 && fleet.every(function (s) { return s.online === null; })) {
+    dot.className = ""; text.textContent = "等待数据…"; return;
+  }
+  dot.className = on === fleet.length ? "on" : "warn";
+  text.textContent = on + "/" + fleet.length + " 台在线" +
+                     (on < fleet.length ? " · 有车离线" : "");
+}
+
+function updateHud() {
+  var total = fleet.length;
+  var on = fleet.filter(function (s) { return s.online === true; }).length;
+  var moving = fleet.filter(function (s) {
+    return s.online === true && s.shadow && s.shadow.speed !== 0 &&
+           s.shadow.speed !== null && s.shadow.speed !== undefined;
+  }).length;
+  var bats = fleet.filter(function (s) {
+    return s.shadow && s.shadow.battery !== null && s.shadow.battery !== undefined;
+  }).map(function (s) { return Number(s.shadow.battery); });
+  var ages = fleet.filter(function (s) { return ageOf(s) !== null; }).map(ageOf);
+
+  $("htotal").textContent = total;
+  $("hon").textContent = on + "/" + total;
+  $("hmove").textContent = moving;
+  $("hbat").textContent = bats.length ? Math.min.apply(null, bats).toFixed(1) + "%" : "--";
+  var ageEl = $("hage");
+  var maxAge = ages.length ? Math.max.apply(null, ages) : null;
+  ageEl.textContent = maxAge === null ? "未知" : fmtAge(maxAge);
+  ageEl.className = "v small" + (maxAge === null || maxAge > 15 ? " stale" : "");
+  $("hms").textContent = lastElapsed === null || lastElapsed === undefined
+    ? "逐台查询" : lastElapsed + " ms";
+}
+
+function renderFleetList() {
+  var list = $("fleetList");
+  if (!fleet.length) { list.innerHTML = '<div class="empty">设备台账为空。</div>'; return; }
+  var html = "";
+  fleet.forEach(function (s) {
+    var stCls = s.online === true ? "st-on" : (s.online === false ? "st-off" : "st-na");
+    var stTxt = s.online === true ? "在线" : (s.online === false ? "离线" : "连接中");
+    var sh = s.shadow;
+    var pos = sh && sh.x !== null && sh.x !== undefined
+      ? Math.round(sh.x) + ", " + Math.round(sh.y) : "--";
+    var hd = sh && sh.heading !== null && sh.heading !== undefined ? sh.heading + "°" : "--";
+    var sp = sh && sh.speed !== null && sh.speed !== undefined ? sh.speed : "--";
+    var bat = sh && sh.battery !== null && sh.battery !== undefined ? sh.battery + "%" : "--";
+    var fpos = (window.FieldMap && FieldMap.ready && sh && sh.x !== null && sh.x !== undefined)
+      ? esc(FieldMap.describe(sh.x, sh.y)) : "";
+    html += '<div class="fleetRow">' +
+              '<span class="swatch" style="background:' + s.color + '"></span>' +
+              '<span class="nm">' + esc(s.name) + "</span>" +
+              '<span class="' + stCls + '">' + stTxt + "</span>" +
+              '<span class="kv">坐标 ' + pos + "</span>" +
+              '<span class="kv">朝向 ' + hd + "</span>" +
+              '<span class="kv">速度 ' + sp + "</span>" +
+              '<span class="kv">电量 ' + bat + "</span>" +
+              '<span class="kv">影子 ' + ageText(s) + "</span>" +
+              (fpos ? '<span class="kv">场地 ' + fpos + "</span>" : "") +
+              (s.err ? '<span class="err">· ' + esc(s.err) + "</span>" : "") +
+            "</div>";
+  });
+  list.innerHTML = html;
+}
+
+// ---------------- 航位推算 ----------------
+// heading 约定与 car_mqtt_client_00X.py 一致：0°=朝上(-Y)，顺时针增
+function step(now) {
+  var pushTrail = (now - lastTrailAt) > TRAIL_TICK_MS;
+  fleet.forEach(function (s) {
+    if (!s.car || !s.shadow) return;
+    var dt = (now - s.shadow.at) / 1000;
+    if (s.car.speed !== 0 && s.online !== false) {
+      var rad = s.car.heading * Math.PI / 180;
+      s.car.x = Math.min(Math.max(s.shadow.x + s.car.speed * VEL * dt * Math.sin(rad), 10), FIELD_W - 10);
+      s.car.y = Math.min(Math.max(s.shadow.y - s.car.speed * VEL * dt * Math.cos(rad), 10), FIELD_H - 10);
+    } else {
+      s.car.x = s.shadow.x; s.car.y = s.shadow.y;
+    }
+    if (pushTrail) {
+      s.trail.push({ x: s.car.x, y: s.car.y });
+      if (s.trail.length > TRAIL_MAX) s.trail.shift();
+    }
+  });
+  if (pushTrail) lastTrailAt = now;
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function drawGrid() {
+  // M3：/field 的合规本地矢量底图；旧后端无此接口时自动退回原来的 50px 网格
+  if (window.FieldMap && FieldMap.ready && FieldMap.drawBase(ctx, FIELD_W, FIELD_H)) return;
+  ctx.fillStyle = "#f3f7fb";
+  ctx.fillRect(0, 0, FIELD_W, FIELD_H);
+  ctx.strokeStyle = "#dfe7f0";
+  ctx.lineWidth = 1;
+  for (var gx = 0; gx <= FIELD_W; gx += 50) {
+    ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, FIELD_H); ctx.stroke();
+  }
+  for (var gy = 0; gy <= FIELD_H; gy += 50) {
+    ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(FIELD_W, gy); ctx.stroke();
+  }
+  ctx.strokeStyle = "#c9d5e2";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, FIELD_W - 2, FIELD_H - 2);
+  ctx.fillStyle = "#b9c5d3";
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "start";
+  ctx.fillText("N ↑  (0,0) 左上角 · 场地 800 × 600 · 全部登记车辆同屏", 10, 18);
+}
+
+function drawTrail(s) {
+  if (s.trail.length < 2) return;
+  var c = s.rgb;
+  ctx.lineWidth = 2;
+  for (var i = 1; i < s.trail.length; i++) {
+    var alpha = (i / s.trail.length * 0.5).toFixed(3);
+    ctx.strokeStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha + ")";
+    ctx.beginPath();
+    ctx.moveTo(s.trail[i - 1].x, s.trail[i - 1].y);
+    ctx.lineTo(s.trail[i].x, s.trail[i].y);
+    ctx.stroke();
+  }
+}
+
+function drawShadowMarker(s) {
+  if (!s.shadowMarker) return;
+  var c = s.rgb;
+  ctx.strokeStyle = "rgba(255,255,255,.95)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(s.shadowMarker.x, s.shadowMarker.y, 24, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + ",.45)";
+  ctx.beginPath(); ctx.arc(s.shadowMarker.x, s.shadowMarker.y, 27, 0, Math.PI * 2); ctx.stroke();
+}
+
+function drawCar(s) {
+  var c = s.car;
+  ctx.save();
+  ctx.globalAlpha = s.online === false ? 0.5 : 1;
+  ctx.translate(c.x, c.y);
+  ctx.rotate(c.heading * Math.PI / 180);
+
+  ctx.fillStyle = "rgba(31,45,61,.15)";
+  ctx.save(); ctx.translate(3, 3); roundRect(-15, -22, 30, 44, 6); ctx.fill(); ctx.restore();
+
+  ctx.fillStyle = s.online === false ? "#7a8a9c" : s.color;
+  roundRect(-15, -22, 30, 44, 6);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.85)";
+  ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = "rgba(255,255,255,.55)";
+  roundRect(-11, -4, 22, 16, 3); ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(-8, -8); ctx.lineTo(8, -8); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawLabel(s) {
+  var c = s.car;
+  var speed = (c.speed === null || c.speed === undefined) ? "--" : c.speed;
+  var label = s.name + (s.online === false ? " · 离线" : " · " + speed);
+  ctx.save();
+  ctx.font = "12px 'Microsoft YaHei', sans-serif";
+  var w = ctx.measureText(label).width + 16, h = 20;
+  var x = Math.min(Math.max(c.x - w / 2, 2), FIELD_W - w - 2);
+  var y = Math.max(c.y - 40, 2);
+  ctx.fillStyle = s.color;
+  ctx.globalAlpha = s.online === false ? 0.6 : 0.92;
+  roundRect(x, y, w, h, 6); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, x + w / 2, y + h / 2 + 0.5);
+  ctx.restore();
+}
+
+function drawIdleHint() {
+  ctx.fillStyle = "#8b99a9";
+  ctx.font = "16px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("等待小车状态…（确认 app.py 业务后端已启动）", FIELD_W / 2, FIELD_H / 2);
+  ctx.textAlign = "start";
+}
+
+function render(now) {
+  step(now);
+  drawGrid();
+  var drawn = fleet.filter(function (s) { return !!s.car; });
+  if (!drawn.length) { drawIdleHint(); requestAnimationFrame(render); return; }
+  drawn.forEach(function (s) { drawTrail(s); drawShadowMarker(s); drawCar(s); drawLabel(s); });
+  requestAnimationFrame(render);
+}
+
+// ================================================================ M3 场地底图 + 只读任务进度
+var MISSION_CN = { pending: "等待启动", running: "执行中", cancelling: "取消中",
+                   succeeded: "已完成", failed: "失败", cancelled: "已取消" };
+
+function loadField() {
+  if (!window.FieldMap) { $("fieldNote").textContent = "field.js 未加载：退回原始网格。"; return; }
+  FieldMap.load(api("/field")).then(function (F) {
+    if (!F.ready) {
+      $("fieldNote").innerHTML = "<b>旧后端</b>：没有 /field，已退回 50px 网格（只读功能不受影响）。";
+      return;
+    }
+    var comp = (F.cfg && F.cfg.compliance) || {};
+    $("fieldNote").innerHTML = "<b>本地矢量场地</b>：" + esc(F.cfg.name || "") +
+      " · 1 单位 = " + F.mpu + " m · " + (F.geoReady ? "GCJ-02 已校准" : "未校准，不输出经纬度") +
+      " · 安全边界" + (F.geofenceEnabled ? "开启" : "关闭") +
+      "<br>合规：" + esc(comp.statement || "") + " · 本页不提供任何控制按钮";
+  });
+}
+
+function pollMissions() {
+  apiFetch(api("/missions"), { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("" + r.status)); })
+    .then(function (j) {
+      var list = j.missions || [];
+      var running = list.filter(function (m) {
+        return m.state === "pending" || m.state === "running" || m.state === "cancelling";
+      });
+      var html = "";
+      if (!running.length) {
+        html = "当前没有进行中的任务";
+        if (list.length) {
+          var last = list[0];
+          html += " · 最近一次：<b>" + esc(last.name) + "</b> <span class='state " +
+                  last.state + "'>" + (MISSION_CN[last.state] || last.state) + "</span> · " +
+                  last.index + "/" + last.total_steps + " 步";
+        }
+      } else {
+        running.slice(0, 4).forEach(function (m) {
+          html += '<div>任务 <b>' + esc(m.name) + "</b>（" + esc(m.id) + "）· 目标 " +
+                  esc(m.device_id.slice(-9)) + " · <span class='state " + m.state + "'>" +
+                  (MISSION_CN[m.state] || m.state) + "</span> · 进度 " +
+                  m.index + "/" + m.total_steps + " 步（" + (m.progress || 0) + "%）· 轨迹 " +
+                  (m.trail || []).length + " 点</div>";
+        });
+      }
+      $("missionLine").innerHTML = html;
+    })
+    .catch(function () {
+      $("missionLine").textContent = "任务接口不可用（旧后端），不影响只读观察。";
+    });
+}
+
+backendInput.addEventListener("change", function () { loadField(); pollMissions(); });
+loadField();
+pollMissions();
+setInterval(pollMissions, 2000);
+
+backendInput.addEventListener("change", poll);
+loadDevices();                        // 拉台账 -> 建状态容器 -> 首次 poll
+setInterval(poll, POLL_MS);
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

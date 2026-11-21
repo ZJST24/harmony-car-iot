@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目学习地图 · 从总体到细节</title>
+<style>
+  :root{
+    --ink:#1f2933; --muted:#5b6b7a; --soft:#8593a3; --line:#e4e9ef; --bg:#f7f9fb; --card:#fff;
+    --blue:#1554c0; --blue-bg:#eaf1fd; --green:#0e7a4a; --green-bg:#e8f6ef;
+    --amber:#8a5a00; --amber-bg:#fff4dd; --red:#b3261e; --red-bg:#fdeceb;
+    --purple:#4b3fb0; --purple-bg:#efedfb;
+    --mono:Consolas,"Courier New",ui-monospace,monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;scroll-padding-top:16px}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.78;
+       font-family:"Microsoft YaHei","PingFang SC",system-ui,-apple-system,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  a{color:var(--blue)}
+
+  .hero{background:#fff;border-bottom:1px solid var(--line);padding:26px 0 22px}
+  .hero-in{max-width:1180px;margin:0 auto;padding:0 26px}
+  .hero h1{font-size:23px;margin:0 0 8px}
+  .hero p{margin:4px 0;color:var(--muted);font-size:12.9px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+  .chip{font-size:11.5px;padding:2px 11px;border-radius:20px;background:#f0f4f9;
+        color:#4a5b6c;border:1px solid #e2e9f1}
+  .chip.b{background:var(--blue-bg);color:var(--blue);border-color:#cfe0f8}
+  .chip.g{background:var(--green-bg);color:var(--green);border-color:#bfe5d2}
+  .chip.p{background:var(--purple-bg);color:var(--purple);border-color:#d9d3f5}
+
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 26px 60px;
+        display:grid;grid-template-columns:210px minmax(0,1fr);gap:24px;align-items:start}
+  nav.toc{position:sticky;top:18px;max-height:calc(100vh - 40px);overflow:auto;
+          background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 10px}
+  nav.toc .h{font-size:11px;letter-spacing:1.2px;color:var(--soft);font-weight:700;padding:0 10px 8px}
+  nav.toc a{display:block;text-decoration:none;color:#42505f;font-size:12.6px;
+            padding:5px 10px;border-radius:7px;border-left:2px solid transparent}
+  nav.toc a:hover{background:#f4f7fb;color:var(--blue)}
+  nav.toc a.on{background:var(--blue-bg);color:var(--blue);font-weight:600;border-left-color:var(--blue)}
+  main{min-width:0}
+  @media(max-width:980px){
+    .wrap{grid-template-columns:1fr;padding:18px 14px 50px}
+    nav.toc{position:static;max-height:none}
+  }
+
+  section{background:var(--card);border:1px solid var(--line);border-radius:14px;
+          padding:20px 26px 24px;margin-bottom:16px}
+  h2{font-size:17.5px;margin:0 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line);
+     display:flex;align-items:center;gap:9px;line-height:1.4}
+  h2 .no{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+         width:24px;height:24px;border-radius:7px;background:var(--blue);color:#fff;
+         font-size:12.5px;font-weight:700}
+  h3{font-size:15px;margin:24px 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  h3:first-of-type{margin-top:4px}
+  h4{font-size:13px;color:var(--muted);letter-spacing:.6px;margin:16px 0 8px}
+  p{margin:9px 0}
+  code{font-family:var(--mono);background:#eef2f7;padding:1px 5px;border-radius:4px;
+       font-size:12.2px;color:var(--red)}
+  pre{background:#0f1a2a;color:#dce6f2;padding:12px 14px;border-radius:9px;font-size:12px;
+      line-height:1.62;overflow:auto;margin:10px 0;font-family:var(--mono)}
+  pre code{background:none;padding:0;color:inherit;white-space:pre}
+  pre .c{color:#7d93ab}
+
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:12.6px;
+        border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  thead th{background:#f3f7fb;color:#46586a;font-weight:600;text-align:left;
+           padding:8px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:7px 11px;border-bottom:1px solid #eef2f7;vertical-align:top}
+  tbody tr:last-child td{border-bottom:0}
+  tbody tr:hover{background:#fafcfe}
+  td code{white-space:normal;overflow-wrap:anywhere}
+  .num{font-family:var(--mono);color:var(--soft);font-size:11.6px;white-space:nowrap}
+
+  .note,.tip,.warn{border-radius:9px;padding:10px 14px;font-size:12.7px;margin:12px 0}
+  .note{background:var(--amber-bg);border:1px solid #f0dcae;color:#7a5200}
+  .tip{background:var(--green-bg);border:1px solid #bfe5d2;color:#0e6b45}
+  .warn{background:var(--red-bg);border:1px solid #f3cdc9;color:#99211b}
+  ul,ol{margin:9px 0;padding-left:22px}
+  li{margin:4px 0}
+
+  /* 四层法 */
+  .method{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:14px 0 6px}
+  .m-card{border:1px solid var(--line);border-radius:11px;padding:12px 13px;background:#fbfcfe}
+  .m-card .lv{font-size:10.5px;letter-spacing:1px;color:var(--soft);font-weight:700}
+  .m-card .nm{font-size:15px;font-weight:700;margin:2px 0 6px;display:flex;align-items:baseline;gap:6px}
+  .m-card .nm span{font-size:11px;color:var(--soft);font-weight:400}
+  .m-card .q{font-size:12px;color:#3d4c5c}
+  .m-card .pass{font-size:11.5px;color:var(--muted);margin-top:6px;padding-top:6px;
+                border-top:1px dashed var(--line)}
+  @media(max-width:820px){ .method{grid-template-columns:1fr 1fr} }
+
+  /* 全景图 */
+  .flow{margin:14px 0 6px;padding:18px 16px 12px;background:#fbfcfe;border:1px dashed #dbe4ef;border-radius:12px}
+  .frow{display:flex;gap:14px}
+  .frow.two>*{flex:1}
+  .frow.mid{justify-content:center}
+  .fnode{background:#fff;border:1.5px solid #dbe4ef;border-radius:11px;padding:9px 14px;
+         text-align:center;min-width:0}
+  .fnode .ft{font-size:13.5px;font-weight:700}
+  .fnode .fs{font-size:11px;color:var(--muted);margin-top:1px}
+  .fnode.b1{border-color:#b9d4f5;background:#f6faff}
+  .fnode.b2{border-color:#c9d6e8;background:#fff}
+  .fnode.b3{border-color:#bfe5d2;background:#f7fdfa}
+  .fnode.b4{border-color:#f0dcae;background:#fffdf6}
+  .fnode.b5{border-color:#d9d3f5;background:#faf9ff}
+  .farrow{position:relative;height:44px}
+  .farrow .ln{position:absolute;left:50%;top:0;bottom:13px;width:0;
+              border-left:2px dashed #cfdcea;transform:translateX(-1px)}
+  .farrow .arw{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);
+               width:0;height:0;font-size:0;line-height:0;
+               border-left:6px solid transparent;border-right:6px solid transparent;
+               border-top:8px solid #9db7d1}
+  .farrow .fl{position:absolute;left:calc(50% + 12px);top:50%;transform:translateY(-50%);
+              font-size:11.3px;color:var(--muted);white-space:nowrap;line-height:1.4}
+
+  /* 面卡片 */
+  .faces{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:12px 0}
+  @media(max-width:900px){ .faces{grid-template-columns:1fr} }
+  .face{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:#fff}
+  .face .hd{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:2px}
+  .face .k{font-size:10.5px;font-weight:700;letter-spacing:.5px;padding:2px 8px;border-radius:6px;
+           background:var(--blue);color:#fff}
+  .face .nm{font-size:14.5px;font-weight:700}
+  .face .d{font-size:12.4px;color:#3d4c5c;margin:7px 0 0}
+  .face .say{margin:9px 0 0;padding:8px 11px;border-radius:8px;background:#f7f9fc;
+             border-left:3px solid #cfe0f8;font-size:12.2px;color:#42505f}
+  .face .say b{color:var(--ink)}
+  .face .files{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .file{font-family:var(--mono);font-size:11px;padding:1px 8px;border-radius:5px;
+        background:#eef2f7;color:#54646f}
+
+  /* 线 */
+  .line-block{border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin:12px 0;
+              background:#fbfcfe}
+  .line-block .lh{font-size:13.5px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .line-block .lh .tag{font-size:10.5px;padding:1px 8px;border-radius:5px;font-weight:600}
+  .dn{background:#fdeceb;color:#99211b}
+  .up{background:var(--green-bg);color:var(--green)}
+  .au{background:var(--amber-bg);color:var(--amber)}
+  .cr{background:var(--purple-bg);color:var(--purple)}
+  ol.steps{list-style:none;padding-left:0;margin:10px 0 4px;counter-reset:s}
+  ol.steps li{position:relative;padding:5px 0 5px 34px;counter-increment:s;font-size:12.7px}
+  ol.steps li:before{content:counter(s);position:absolute;left:0;top:6px;width:22px;height:22px;
+    border-radius:50%;background:#fff;border:1.5px solid #cfdcea;color:#5b6b7a;
+    font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  ol.steps li+li:after{content:"";position:absolute;left:11px;top:-6px;height:12px;
+    border-left:1.5px dashed #dbe4ef}
+  ol.steps li b{font-weight:600}
+  .pts{margin-top:8px;font-size:11.6px;color:var(--muted)}
+  .pts i{font-style:normal;font-family:var(--mono);color:var(--purple);background:var(--purple-bg);
+         padding:0 5px;border-radius:4px;margin-right:4px}
+
+  /* 难度 */
+  .star{color:#e0a72a;letter-spacing:1px;font-size:12px;white-space:nowrap}
+  .star i{color:#c6d2df;font-style:normal}
+  td.star{width:80px}
+  /* 资料表：第一列（文件名）给足宽度，避免"网络拓扑（交互图）"被挤成三行 */
+  table.res td:first-child{width:186px}
+  table.res td:first-child a{font-weight:600}
+
+  /* 路径 */
+  .path{margin:12px 0 0}
+  .stage{position:relative;padding:0 0 16px 34px}
+  .stage:before{content:"";position:absolute;left:11px;top:22px;bottom:-2px;border-left:2px dashed #d3dded}
+  .stage:last-child:before{display:none}
+  .stage .dot{position:absolute;left:0;top:2px;width:24px;height:24px;border-radius:50%;
+              background:var(--blue);color:#fff;font-size:11.5px;font-weight:700;
+              display:flex;align-items:center;justify-content:center}
+  .stage .st{font-size:13.8px;font-weight:700}
+  .stage .sd{font-size:12.5px;color:#3d4c5c;margin-top:2px}
+  .stage .ok{margin-top:6px;font-size:12.2px;color:var(--green);background:var(--green-bg);
+             border:1px solid #bfe5d2;border-radius:8px;padding:6px 11px;display:inline-block}
+  .stage .no{margin-top:6px;font-size:12px;color:var(--muted)}
+
+  /* 提问模板 */
+  .ask{border:1px solid #d9d3f5;background:#faf9ff;border-radius:10px;padding:12px 16px;margin:10px 0}
+  .ask .q{font-size:13px;font-weight:600;color:var(--purple);margin-bottom:4px}
+  .ask code{background:#fff;border:1px solid #e4e0f7}
+  .flow2{background:#f7f9fc;border-left:3px solid #cfe0f8;border-radius:8px;padding:10px 14px;
+         font-size:12.4px;color:#3d4c5c;margin:10px 0}
+
+  footer{max-width:1180px;margin:0 auto;padding:0 26px 40px;color:var(--soft);font-size:11.8px}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-in">
+    <h1>鸿蒙车机项目 · 学习地图</h1>
+    <p>这是整套学习资料的第 <strong>0</strong> 份：只做导航，不讲细节。</p>
+    <p>用途：先建立全局坐标，知道自己站在哪、下一步该往哪走。之后每问一个具体问题，我再生成对应的一份 HTML 讲解。</p>
+    <div class="chips">
+      <span class="chip b">5 个面</span>
+      <span class="chip">4 条主线</span>
+      <span class="chip">36 个知识点</span>
+      <span class="chip g">初学者向 · 从零解释</span>
+      <span class="chip p">2026-11-08</span>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+  <nav class="toc">
+    <div class="h">目录</div>
+    <a href="#s0">0 · 怎么用这套资料</a>
+    <a href="#s1">1 · 总体：这个项目在干嘛</a>
+    <a href="#s2">2 · 面：5 块知识领域</a>
+    <a href="#s3">3 · 线：4 条主线</a>
+    <a href="#s4">4 · 点：36 个知识点</a>
+    <a href="#s5">5 · 推荐学习顺序</a>
+    <a href="#s6">6 · 现有资料怎么配合</a>
+    <a href="#s7">7 · 怎么让我讲解</a>
+  </nav>
+
+<main>
+
+<!-- ============ 0 ============ -->
+<section id="s0">
+  <h2><span class="no">0</span>怎么用这套资料：总体 → 面 → 线 → 点</h2>
+
+  <p>你是先做完项目、再回头学。这其实是好事：你有一台<strong>已经跑起来的机器</strong>，可以随时拆开看、随时验证。缺的只是一个地图和顺序。</p>
+
+  <div class="method">
+    <div class="m-card">
+      <div class="lv">LAYER 1</div>
+      <div class="nm">总体 <span>1 张图</span></div>
+      <div class="q">这个项目到底在解决什么问题？五个部分各自扮演什么角色？</div>
+      <div class="pass">过关标准：能对着白纸画出五端、并说出箭头方向。</div>
+    </div>
+    <div class="m-card">
+      <div class="lv">LAYER 2</div>
+      <div class="nm">面 <span>5 块</span></div>
+      <div class="q">每一块涉及哪些技术？我该补哪方面的基础？</div>
+      <div class="pass">过关标准：听到 MQTT / 物模型 / ArkUI 不再发怵，知道它属于哪一块。</div>
+    </div>
+    <div class="m-card">
+      <div class="lv">LAYER 3</div>
+      <div class="nm">线 <span>4 条</span></div>
+      <div class="q">一条命令从点击到车动起来，中间经过哪些环节、每环做什么？</div>
+      <div class="pass">过关标准：能把任意一条链路从头到尾讲一遍，不跳步。</div>
+    </div>
+    <div class="m-card">
+      <div class="lv">LAYER 4</div>
+      <div class="nm">点 <span>36 个</span></div>
+      <div class="q">这个函数、这个字段、这行配置到底为什么这么写？</div>
+      <div class="pass">过关标准：能自己改一个功能，且知道改了会影响哪几处。</div>
+    </div>
+  </div>
+
+  <div class="tip">
+    <b>为什么必须按这个顺序</b>：先看点，容易变成"背了一堆名词但不知道它们在哪用"；先有线和面，点才有地方挂。
+    每学一个点，都问自己一句：<strong>它属于哪条线上的哪一环？</strong>
+  </div>
+</section>
+
+<!-- ============ 1 ============ -->
+<section id="s1">
+  <h2><span class="no">1</span>总体：这个项目在干嘛</h2>
+
+  <p><strong>一句话</strong>：让一块屏幕（手机）能看见一辆小车在哪、并指挥它往哪开；而中间所有和云打交道的麻烦事，都交给一个自己写的后端去挡。</p>
+
+  <p><strong>为什么要分五层</strong>：如果让手机 App 直接连华为云，就得把云的密钥（AK/SK）塞进 App 包里 —— 谁都能反编译拿出来，等于把银行卡和密码一起发出去。所以中间插一个<strong>后端</strong>当"前台"：App 只跟后端说人话（HTTP），后端再拿着钥匙去跟云打交道。</p>
+
+  <div class="flow">
+    <div class="frow two">
+      <div class="fnode b1">
+        <div class="ft">① 鸿蒙 APP</div>
+        <div class="fs">手机上的界面 · 不持有任何云凭证</div>
+      </div>
+      <div class="fnode b5">
+        <div class="ft">⑤ 网页视图</div>
+        <div class="fs">浏览器里的控制台 / 俯视图</div>
+      </div>
+    </div>
+
+    <div class="farrow"><span class="ln"></span><span class="arw"></span><span class="fl">HTTP / JSON · 轮询 2 秒 · 命令同步</span></div>
+
+    <div class="frow mid">
+      <div class="fnode b2" style="flex:0 0 80%">
+        <div class="ft">② 业务后端（Python + Flask）</div>
+        <div class="fs">唯一持有 AK/SK 的地方 · 命令白名单 · 审计日志 · :8000</div>
+      </div>
+    </div>
+
+    <div class="farrow"><span class="ln"></span><span class="arw"></span><span class="fl">HTTPS OpenAPI · 每次请求都要签名</span></div>
+
+    <div class="frow mid">
+      <div class="fnode b3" style="flex:0 0 80%">
+        <div class="ft">③ 华为云 IoTDA（物联网平台）</div>
+        <div class="fs">实例 9f149bee02 / cn-north-4 · 设备影子 · 物模型</div>
+      </div>
+    </div>
+
+    <div class="farrow"><span class="ln"></span><span class="arw"></span><span class="fl">MQTTS / TLS 8883 · 一机一密</span></div>
+
+    <div class="frow mid">
+      <div class="fnode b4" style="flex:0 0 80%">
+        <div class="ft">④ 模拟小车（Python 脚本，不是真车）</div>
+        <div class="fs">本质就是一个 MQTT 客户端 · 自己算位置 · 定时上报</div>
+      </div>
+    </div>
+  </div>
+
+  <h3>三个最容易误解的地方</h3>
+  <table>
+    <thead><tr><th>以为</th><th>实际</th><th>为什么重要</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>"小车是硬件，我用代码控制它"</td>
+        <td>小车是 <code>car_mqtt_client_001.py</code> 这个 Python 脚本，位置是它自己用数学算出来的（<code>x += sin(heading) × 速度</code> 那类）</td>
+        <td>搞清这点，你才知道"为什么改代码能让车动"</td>
+      </tr>
+      <tr>
+        <td>"App 打开就能看到实时位置"</td>
+        <td>App 看到的是云端的<strong>设备影子</strong>（一块黑板），影子由小车定时写（动时 5 秒、停时 60 秒）</td>
+        <td>这解释了"为什么画面会跳、为什么车停着数字不动"</td>
+      </tr>
+      <tr>
+        <td>"云端会主动推消息给 App"</td>
+        <td>不会。App 每 2 秒问一次后端"现在怎么样"（轮询），后端每次去云上读两次</td>
+        <td>这决定了免费额度、延迟、以及为什么后端调用次数是 App 的两倍</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2">
+  <h2><span class="no">2</span>面：5 块知识领域</h2>
+  <p>每块"面"下面都标了：学完能回答什么问题、代码在哪些文件、大概多难。<strong>难度是相对等级，最多 3 颗星</strong>（和下面知识点清单同一把尺子），只比大小，不代表学时。</p>
+
+  <div class="faces">
+
+    <div class="face">
+      <div class="hd"><span class="k">面 A</span><span class="nm">物联网通信 · MQTT</span><span class="star">★★</span></div>
+      <p class="d">设备怎么和云保持"长连接"、消息怎么按主题投递、密码怎么算。</p>
+      <div class="say">
+        <b>打个比方</b>：MQTT 像报刊亭 —— 你不用认识送报的人，只要订阅"体育版"，有人往这个版投稿你就收到。
+      </div>
+      <p class="d"><b>学完能回答</b>：为什么设备能主动连云、而 App 不能？<code>clientId</code> 里那串时间戳干什么用？为什么两份脚本不能同时跑同一个设备？</p>
+      <div class="files"><span class="file">car_mqtt_client_001.py</span><span class="file">car_mqtt_client_002.py</span></div>
+    </div>
+
+    <div class="face">
+      <div class="hd"><span class="k">面 B</span><span class="nm">华为云 IoTDA 平台</span><span class="star">★★★</span></div>
+      <p class="d">实例、产品、物模型、设备、设备影子、OpenAPI —— 一堆平台概念，其实只解决一件事：让云知道"这台设备有什么能力、现在什么状态"。</p>
+      <div class="say">
+        <b>打个比方</b>：物模型是<b>说明书</b>（这台设备有 5 个属性、能听懂 5 条命令）；设备影子是<b>黑板</b>（最新一次上报的值写在这，谁都能来看一眼）。
+      </div>
+      <p class="d"><b>学完能回答</b>：属性 / 命令 / 事件有什么区别？没有物模型会怎样？为什么必须用实例专属域名？</p>
+      <div class="files"><span class="file">model/smart-car-model.json</span><span class="file">config.json</span></div>
+    </div>
+
+    <div class="face">
+      <div class="hd"><span class="k">面 C</span><span class="nm">Python 后端服务</span><span class="star">★★</span></div>
+      <p class="d">一个 200 行左右的 Flask 应用：收 HTTP 请求、校验参数、调云 API、把结果转成 JSON 返回。</p>
+      <div class="say">
+        <b>打个比方</b>：后端是<b>前台+翻译官</b> —— 听懂手机说的"前进"，翻译成华为云听得懂的 API 调用，再把回执翻回手机能懂的话。
+      </div>
+      <p class="d"><b>学完能回答</b>：为什么敲 <code>python xx.py</code> 会报"找不到模块"？<code>executed:true</code> 是谁给的？为什么 403 报错说"用户不存在"其实不是用户的问题？</p>
+      <div class="files"><span class="file">app.py</span><span class="file">config.json</span><span class="file">commands.log</span></div>
+    </div>
+
+    <div class="face">
+      <div class="hd"><span class="k">面 D</span><span class="nm">鸿蒙应用开发 · ArkTS / ArkUI</span><span class="star">★★★</span></div>
+      <p class="d">用 ArkTS 写界面：声明式布局、状态驱动刷新、Canvas 画图、发 HTTP 请求、本地存配置。</p>
+      <div class="say">
+        <b>打个比方</b>：ArkUI 是"<b>描述你要什么，系统帮你画</b>" —— 你写"这里有个按钮、文字是前进"，而不是自己拿笔画矩形再写字。
+      </div>
+      <p class="d"><b>学完能回答</b>：为什么改了变量界面不刷新？<code>@State</code> 和 <code>@Prop</code> 差在哪？<code>@Builder</code> 那个坑到底怎么回事？</p>
+      <div class="files"><span class="file">pages/Index.ets</span><span class="file">common/CarApi.ets</span><span class="file">module.json5</span></div>
+    </div>
+
+    <div class="face">
+      <div class="hd"><span class="k">面 E</span><span class="nm">工程化与调试</span><span class="star">★★</span></div>
+      <p class="d">不是"知识"但最耗时间的一块：解释器选错、依赖没装、端口被占、局域网 IP 变了、密钥放错地方。</p>
+      <div class="say">
+        <b>打个比方</b>：这像<b>学会用厨房</b> —— 菜谱（代码）再好，火没点着、锅拿错了，一样做不出来。
+      </div>
+      <p class="d"><b>学完能回答</b>：为什么必须用 <code>D:\miniconda\python.exe</code>？模拟器为什么要用 <code>10.0.2.2</code>？出问题时先看哪一层？</p>
+      <div class="files"><span class="file">README.md</span><span class="file">test_api_auth.py</span><span class="file">hvigor 命令行</span></div>
+    </div>
+
+    <div class="face" style="background:#fbfcfe;border-style:dashed">
+      <div class="hd"><span class="k" style="background:#8593a3">建议</span><span class="nm">先从哪块入手</span></div>
+      <p class="d">如果你只想要"能讲明白这个项目"，顺序建议 <b>面 C → 面 B → 面 A → 面 D</b>：后端最短、最能串起全链路；云平台概念是后端在调用的对象；MQTT 是设备侧细节；鸿蒙界面最独立，可以最后补。</p>
+      <p class="d">如果你更想"能改这个项目"，先补 <b>面 D</b>（改界面最容易有成就感），再回头补 C 和 B。</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3">
+  <h2><span class="no">3</span>线：4 条主线</h2>
+  <p>面是"知识分类"，线是"数据实际怎么跑"。<strong>项目里所有代码，都能挂到这 4 条线上的某一环。</strong></p>
+
+  <div class="line-block">
+    <div class="lh"><span class="tag dn">下行</span>线 1 · 控制：点一下按钮，车开始动</div>
+    <ol class="steps">
+      <li><b>点按钮</b> APP 或网页触发，所有按钮立即变灰禁用（防止连点把额度刷爆）</li>
+      <li><b>POST /command</b> 请求体 <code>{"cmd":"FORWARD","speed":60}</code>，后端先过白名单</li>
+      <li><b>构造云请求</b> 后端拿 AK/SK 签名，调 <code>CreateCommand</code>，<code>service_id</code> 写死 <code>car</code></li>
+      <li><b>云下发</b> 云端查物模型确认这条命令存在，再通过 MQTT 主题推给设备</li>
+      <li><b>车执行</b> 脚本收到消息，改自己的速度/朝向，然后<b>立即回执</b></li>
+      <li><b>回执回流</b> 回执沿原路返回，后端看到 <code>response_name</code> 有值，才敢说 <code>executed:true</code></li>
+      <li><b>界面反馈</b> 显示"✓ FORWARD 已执行（383 ms）"，同时命令写进 <code>commands.log</code></li>
+    </ol>
+    <div class="pts">涉及的点：<i>C3</i><i>C5</i><i>C7</i><i>B3</i><i>B6</i><i>A1</i><i>A5</i><i>D4</i></div>
+  </div>
+
+  <div class="line-block">
+    <div class="lh"><span class="tag up">上行</span>线 2 · 观测：屏幕上的车为什么在那儿</div>
+    <ol class="steps">
+      <li><b>车自己走</b> 脚本按速度每 100ms 推进坐标（没有人告诉它"你现在在哪"）</li>
+      <li><b>定时上报</b> 运动中 5 秒一帧、静止 60 秒一帧，把 5 个属性发给云</li>
+      <li><b>云写入影子</b> 平台把这份数据存成"最新状态"，并记下事件时间</li>
+      <li><b>App 轮询</b> 每 2 秒 <code>GET /status</code>，后端这一下要打<b>两次</b>云 API（读影子 + 查在线状态）</li>
+      <li><b>画布外推</b> 两次上报之间，App 自己按速度往前猜位置（航位推算），新数据到了再校正</li>
+      <li><b>白圈校正</b> 那个白圈就是"真实上报点"，车漂到哪儿都会被拉回来</li>
+    </ol>
+    <div class="pts">涉及的点：<i>B4</i><i>B5</i><i>C4</i><i>C6</i><i>D5</i><i>E3</i></div>
+  </div>
+
+  <div class="line-block">
+    <div class="lh"><span class="tag au">接入</span>线 3 · 设备上线：脚本是怎么"登"上云的</div>
+    <ol class="steps">
+      <li><b>算密码</b> 拿设备密钥（secret）和时间戳做 HMAC-SHA256，得到这一次连接的密码</li>
+      <li><b>拼身份</b> <code>clientId = 设备ID_0_1_时间戳</code>，<code>username = 设备ID</code></li>
+      <li><b>TLS 连接</b> 连 8883 端口，云端校验密码对不对（错了就是 <code>rc=4</code>）</li>
+      <li><b>订阅主题</b> 订阅自己的命令通道，之后云端推的命令才收得到</li>
+      <li><b>补一帧</b> 立刻上报一次属性，控制台里设备状态从离线变 ONLINE</li>
+    </ol>
+    <div class="pts">涉及的点：<i>A2</i><i>A3</i><i>A4</i><i>A5</i><i>A6</i><i>E1</i></div>
+  </div>
+
+  <div class="line-block">
+    <div class="lh"><span class="tag cr">凭证</span>线 4 · 后端凭什么能调云：签名的三个条件</div>
+    <ol class="steps">
+      <li><b>身份三件套</b> AK（你是谁）、SK（你的章）、project_id（在哪个项目/区域干活）</li>
+      <li><b>专用地址</b> 必须用实例专属域名，不能用通用域名，否则恒定 403</li>
+      <li><b>衍生签名</b> 每次请求临时算一个签名，而不是把 SK 直接发出去</li>
+      <li><b>别多传参数</b> 请求里再带 <code>instance_id</code> 反而报错（域名里已经含了）</li>
+      <li><b>报错识别</b> 这三项任一出错都是 <code>403 IOTDA.000021</code>，而且文案会误导你去查权限</li>
+    </ol>
+    <div class="pts">涉及的点：<i>B7</i><i>B8</i><i>B1</i><i>C5</i><i>C6</i><i>E5</i></div>
+  </div>
+
+  <div class="note">
+    <b>怎么用这 4 条线自测</b>：随便挑一条，合上文档，从第一环讲到最后一环。卡在哪一环，就去补那一环对应的"点"。
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4">
+  <h2><span class="no">4</span>点：36 个知识点清单</h2>
+  <p>这是"最小学习单元"清单。每一条都可以单独问我要一份讲解。<strong>难度</strong>：★ 看一遍就懂 / ★★ 需要动手验证 / ★★★ 需要理解原理。</p>
+
+  <h3><span class="tag" style="background:var(--blue);color:#fff;font-size:10.5px;padding:2px 8px;border-radius:5px">面 A</span>物联网通信 · MQTT</h3>
+  <table>
+    <thead><tr><th>编号</th><th>知识点</th><th>它解决什么问题</th><th>难度</th></tr></thead>
+    <tbody>
+      <tr><td class="num">A1</td><td>发布 / 订阅模型与"主题"</td><td>设备之间不用互相认识，只按主题收发，云负责转发</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">A2</td><td>CONNECT 报文三要素</td><td>云靠 <code>clientId</code>/<code>username</code>/<code>password</code> 认出"你是哪台设备"</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">A3</td><td>一机一密的 HMAC-SHA256</td><td>密钥不上网传输，只用它算一个一次性的密码</td><td class="star">★★★</td></tr>
+      <tr><td class="num">A4</td><td>QoS 与 keepalive</td><td>QoS 1 保证"至少送到一次"；keepalive 让云知道你还活着</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">A5</td><td>TLS（8883）与证书校验</td><td>通信加密；但教学脚本跳过了校验 —— 这是个安全欠账</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">A6</td><td>通配符订阅 <code>#</code></td><td>一条订阅收下所有命令，不用逐个写</td><td class="star">★<i>★</i><i>★</i></td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="tag" style="background:var(--blue);color:#fff;font-size:10.5px;padding:2px 8px;border-radius:5px">面 B</span>华为云 IoTDA</h3>
+  <table>
+    <thead><tr><th>编号</th><th>知识点</th><th>它解决什么问题</th><th>难度</th></tr></thead>
+    <tbody>
+      <tr><td class="num">B1</td><td>实例、区域与专属域名</td><td>同一朵云上有很多实例，域名里带实例 ID 才能找对门</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">B2</td><td>产品 / 设备 / 物模型三层关系</td><td>"一类车"和"某辆车"分开管理，属性命令定义一次复用</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">B3</td><td>属性 vs 命令 vs 事件</td><td>属性是"状态"（可读写），命令是"动作"（要回执），事件是"上报发生的事情"</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">B4</td><td>设备影子（reported / desired）</td><td>设备会掉线，云替你记住"最后一次它说自己在哪"</td><td class="star">★★★</td></tr>
+      <tr><td class="num">B5</td><td>属性上报的 JSON 结构</td><td>固定形状 <code>services[].properties</code>，写错就被平台拒收</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">B6</td><td>命令下发与 <code>request_id</code></td><td>回执要按这个 id 对号入座，而它藏在主题尾部不在正文里</td><td class="star">★★★</td></tr>
+      <tr><td class="num">B7</td><td>IAM 的 AK / SK / project_id</td><td>云上的"身份证 + 私章 + 项目工号"，三者缺一不可</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">B8</td><td>衍生签名（derived predicate）</td><td>每次请求临时算签名，SK 本身不出本机</td><td class="star">★★★</td></tr>
+      <tr><td class="num">B9</td><td>免费额度与配额</td><td>S0 每天 1 万条消息，决定"上报间隔能设多密"</td><td class="star">★<i>★</i><i>★</i></td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="tag" style="background:var(--blue);color:#fff;font-size:10.5px;padding:2px 8px;border-radius:5px">面 C</span>Python 后端</h3>
+  <table>
+    <thead><tr><th>编号</th><th>知识点</th><th>它解决什么问题</th><th>难度</th></tr></thead>
+    <tbody>
+      <tr><td class="num">C1</td><td>解释器、版本与虚拟环境</td><td>为什么同一台电脑上有好几个 Python，装了这个那个还是没有</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">C2</td><td>pip 与依赖管理</td><td>代码里的 <code>import</code> 从哪来、装到哪去</td><td class="star">★<i>★</i><i>★</i></td></tr>
+      <tr><td class="num">C3</td><td>Flask 路由与请求解析</td><td><code>@app.get</code> 是怎么把 URL 变成函数调用的</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">C4</td><td><code>jsonify</code> 与 Decimal 陷阱</td><td>云返回的数字类型不能直接转 JSON，必须先 <code>float()</code></td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">C5</td><td>构造云 SDK 客户端</td><td>凭证 + 区域 + 端点三样配好，才谈得上发请求</td><td class="star">★★★</td></tr>
+      <tr><td class="num">C6</td><td>异常处理与降级</td><td>云挂了不该让 App 白屏，要退化成"离线"而不是报 500</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">C7</td><td>白名单与审计日志</td><td>挡住乱传的命令；每个动作留痕，出事能复盘</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">C8</td><td>CORS 与 OPTIONS 预检</td><td>浏览器为什么"明明后端通了却说被拦"</td><td class="star">★★<i>★</i></td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="tag" style="background:var(--blue);color:#fff;font-size:10.5px;padding:2px 8px;border-radius:5px">面 D</span>鸿蒙 ArkTS / ArkUI</h3>
+  <table>
+    <thead><tr><th>编号</th><th>知识点</th><th>它解决什么问题</th><th>难度</th></tr></thead>
+    <tbody>
+      <tr><td class="num">D1</td><td>ArkTS 与 TypeScript 的关系</td><td>语法像 TS 但有约束（例如不能用 <code>any</code>、对象字面量要显式类型）</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">D2</td><td>声明式 UI 与 <code>@Component</code></td><td>"我要什么"而不是"怎么画"，组件化复用</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">D3</td><td>状态管理：<code>@State</code> / <code>@Prop</code> / <code>@Builder</code> 的坑</td><td>为什么变量变了界面没变 —— 本项目踩过的最值钱的坑</td><td class="star">★★★</td></tr>
+      <tr><td class="num">D4</td><td><code>@kit.NetworkKit</code> 的 http 与 async/await</td><td>怎么发请求、怎么拿到字符串、怎么处理超时</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">D5</td><td>Canvas 绘制与定时器</td><td>画布是命令式绘制，不受状态刷新机制影响 —— 所以它"看起来正常"</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">D6</td><td><code>PersistentStorage</code> 本地存储</td><td>后端地址改一次，重启 App 不用再填</td><td class="star">★<i>★</i><i>★</i></td></tr>
+      <tr><td class="num">D7</td><td><code>module.json5</code> 权限与 network_config</td><td>不声明网络权限就发不出请求；http 明文还要单独放行</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">D8</td><td>签名与 HAP 产物</td><td>为什么命令行只能出 unsigned 包、为什么装不进模拟器</td><td class="star">★★<i>★</i></td></tr>
+    </tbody>
+  </table>
+
+  <h3><span class="tag" style="background:var(--blue);color:#fff;font-size:10.5px;padding:2px 8px;border-radius:5px">面 E</span>工程化与调试</h3>
+  <table>
+    <thead><tr><th>编号</th><th>知识点</th><th>它解决什么问题</th><th>难度</th></tr></thead>
+    <tbody>
+      <tr><td class="num">E1</td><td>hvigor 命令行编译</td><td>不用打开 DevEco 也能验证代码能不能编过</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">E2</td><td>端口、局域网 IP 与 <code>10.0.2.2</code></td><td>模拟器里没有 127.0.0.1，那个地址指向"你电脑"</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">E3</td><td>日志怎么读</td><td>三个终端各自关心什么、<code>commands.log</code> 能看出什么</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">E4</td><td>密钥管理</td><td>哪些文件不能提交、占位符怎么防呆、泄露了怎么办</td><td class="star">★★<i>★</i></td></tr>
+      <tr><td class="num">E5</td><td>分层排错法</td><td>先判断"断在哪一段"，再进那一段找，不要瞎改代码</td><td class="star">★★<i>★</i></td></tr>
+    </tbody>
+  </table>
+
+  <div class="tip">
+    <b>不用全学</b>。如果目标是"答辩时能讲清楚"，<b>B3 / B4 / C3 / C5 / D3 / E5</b> 这 6 个点是最高性价比——它们各自对应一个"最容易被追问"的问题。
+  </div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5">
+  <h2><span class="no">5</span>推荐学习顺序</h2>
+  <p>下面的顺序是<strong>按依赖关系</strong>排的：每一步都用得上前一步的东西。不必严格照做，但跳步容易卡住。</p>
+
+  <div class="path">
+    <div class="stage">
+      <div class="dot">0</div>
+      <div class="st">先让项目跑起来（约 1 小时）</div>
+      <div class="sd">三个进程：车端脚本、后端、App/网页。跑通一次，再开始拆。这一步只看 <code>项目交接.md</code> 第 4 节。</div>
+      <div class="ok">学完能回答：我改完代码要重启哪个进程？</div>
+    </div>
+
+    <div class="stage">
+      <div class="dot">1</div>
+      <div class="st">面 C · 后端（最先看，因为它是全链路的枢纽）</div>
+      <div class="sd">重点：一个请求怎么进来、怎么变成一次云调用、怎么变成一段 JSON 回去。把 <code>app.py</code> 的 200 行按三个接口读完。</div>
+      <div class="ok">学完能回答：<code>curl /command</code> 之后，代码依次执行了哪几行？</div>
+    </div>
+
+    <div class="stage">
+      <div class="dot">2</div>
+      <div class="st">面 B · 云平台概念（理解后端在"跟谁说话"）</div>
+      <div class="sd">重点：物模型、设备影子、属性/命令的区别。不用记控制台每个按钮，只要知道这三样是什么、谁写的、谁读的。</div>
+      <div class="ok">学完能回答：为什么设备离线后，<code>/status</code> 还能返回一组坐标？</div>
+    </div>
+
+    <div class="stage">
+      <div class="dot">3</div>
+      <div class="st">面 A · MQTT（设备侧到底怎么连的）</div>
+      <div class="sd">重点：主题、订阅、一机一密。可以边看边故意把时间戳改成北京时间，观察 <code>rc=4</code>，比看十遍文档印象深。</div>
+      <div class="ok">学完能回答：为什么两台脚本连同一个设备会互相踢下线？</div>
+    </div>
+
+    <div class="stage">
+      <div class="dot">4</div>
+      <div class="st">面 D · 鸿蒙应用（最独立，可以放最后）</div>
+      <div class="sd">重点：状态驱动刷新（D3）+ 发请求（D4）。界面部分不用背属性名，用 DevEco 的预览器边改边看最快。</div>
+      <div class="ok">学完能回答：为什么指标曾显示 <code>--</code>，改成组件后就正常了？</div>
+    </div>
+
+    <div class="stage">
+      <div class="dot">5</div>
+      <div class="st">回头看细节 · 点（按需挑）</div>
+      <div class="sd">这时候你已经有了骨架，剩下的点会自己"挂"上去。建议从 36 个点里挑 6 个高性价比的深挖，而不是全刷一遍。</div>
+      <div class="no">提示：学完每一条，回来在这张图上打个勾，进度会更清楚。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6">
+  <h2><span class="no">6</span>现有资料怎么配合用</h2>
+  <p>项目里已经有 5 份文档，它们不是重复的，各自解决不同问题。别一上来就从头读到尾。</p>
+  <table class="res">
+    <thead><tr><th>文件</th><th>它回答什么</th><th>什么时候翻</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><a href="../项目交接.md">项目交接.md</a></td>
+        <td>现在是什么状态、怎么启动、踩过哪些坑、还差什么</td>
+        <td><b>每次开工第一份</b>。想跑起来就看第 4 节</td>
+      </tr>
+      <tr>
+        <td><a href="../接口文档.html">接口文档（HTML）</a></td>
+        <td>端与端之间传什么：14 个接口的字段、错误码、时序</td>
+        <td>想知道"这个字段哪来的/这错误什么意思"时<b>按接口查</b>，别通读</td>
+      </tr>
+      <tr>
+        <td><a href="../网络拓扑.html">网络拓扑（交互图）</a></td>
+        <td>点节点看这端是什么，点连线看这段传什么</td>
+        <td>建立整体印象最快的一份，<b>建议现在就点一遍</b></td>
+      </tr>
+      <tr>
+        <td><a href="../../README.md">README.md</a></td>
+        <td>设计为什么这么做、历史上踩过哪些大坑（403 破案实录）</td>
+        <td>等你想问"当初为什么这么设计"时读</td>
+      </tr>
+      <tr>
+        <td><a href="../华为云IoTDA操作手册.html">华为云操作手册</a></td>
+        <td>从零开通云资源的图文步骤</td>
+        <td>只在换账号/重建实例时用；注意文中实例 ID 是老师环境</td>
+      </tr>
+      <tr>
+        <td style="background:#f7f9fc"><b>本文件</b></td>
+        <td>学习路径与知识点索引</td>
+        <td>每次不知道该学什么的时候回来</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7">
+  <h2><span class="no">7</span>怎么让我讲解</h2>
+
+  <p>你不用组织语言，直接说编号或名字就行。我会生成一份独立的 HTML 讲解文件放在 <code>docs/学习/</code> 下，编号递增。</p>
+
+  <div class="flow2">
+    <b>每份讲解的固定结构</b>（这样你每次都猜得到内容在哪）：<br>
+    ① 一句话结论 → ② 它在这张地图的哪个位置 → ③ 原理（配类比和图示）→ ④ 本项目代码逐段拆解 → ⑤ 常见坑 / 曾经踩过什么 → ⑥ 三道自测题（附答案）
+  </div>
+
+  <h4>你可以这样说</h4>
+  <div class="ask">
+    <div class="q">按编号</div>
+    <code>讲 B4</code> · <code>把 A3 和 A5 一起讲</code> · <code>从 D3 开始，往后连着讲三个</code>
+  </div>
+  <div class="ask">
+    <div class="q">按现象 / 疑问</div>
+    <code>为什么设备离线了还能读到坐标？</code> · <code>executed:true 到底谁给的？</code> · <code>App 里的白圈是什么</code>
+  </div>
+  <div class="ask">
+    <div class="q">按代码</div>
+    <code>讲讲 app.py 第 60 到 120 行</code> · <code>Index.ets 里那个 @Builder 的坑</code>
+  </div>
+
+  <div class="note">
+    <b>我会遵守两条</b>：① 不假设你懂前置知识（不懂的名词就地解释，必要时加小图）；② 讲完会明确告诉你"这个点对应地图上的哪个编号"，保持全局坐标不丢。
+  </div>
+
+  <p style="margin-top:14px;color:var(--muted);font-size:12.6px">
+    建议的第一份：<b><a href="#s2">面 C 的后端</a></b>——只有 200 行，却串起了 4 条线里的 3 条，性价比最高。<br>
+    如果你更想先看"能摸到的东西"，就从 <b>线 1（控制链路）</b>开始，一步步跟着走一遍。
+  </p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  学习地图 v1.0 · 2026-11-08 · 配套工程 <code>v2-iot单车版</code> + 鸿蒙工程 <code>ohcar</code><br>
+  本文件只做导航，不含密钥与凭证；具体字段与错误码见 <code>docs/接口文档.html</code>。
+</footer>
+
+<script>
+(function () {
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var map = [];
+  links.forEach(function (a) {
+    var el = document.querySelector(a.getAttribute('href'));
+    if (el) { map.push({ el: el, a: a }); }
+  });
+  if (!map.length) { return; }
+  function activate(a) {
+    links.forEach(function (l) { l.classList.remove('on'); });
+    if (a) { a.classList.add('on'); }
+  }
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) { return; }
+        for (var i = 0; i < map.length; i++) {
+          if (map[i].el === e.target) { activate(map[i].a); break; }
+        }
+      });
+    }, { rootMargin: '-8% 0px -76% 0px', threshold: 0 });
+    map.forEach(function (m) { io.observe(m.el); });
+  }
+  activate(map[0].a);
+})();
+</script>
+
+</body>
+</html>

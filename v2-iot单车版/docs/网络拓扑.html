@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻检车云控 · 五端网络拓扑（可交互）</title>
+<style>
+  :root{
+    --ink:#1f2933; --muted:#5b6b7a; --line:#e4e9ef; --bg:#f7f9fb; --card:#ffffff;
+    --blue:#1554c0; --blue-bg:#eaf1fd; --green:#0e7a4a; --amber:#8a5a00; --amber-bg:#fff4dd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.7;
+       font-family:"Microsoft YaHei","PingFang SC",system-ui,-apple-system,sans-serif}
+  header{padding:20px 24px 0}
+  h1{font-size:20px;margin:0 0 4px;letter-spacing:.3px}
+  .sub{color:var(--muted);font-size:12.5px}
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:16px;padding:16px 24px 30px;align-items:start}
+  .stage{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:6px}
+  svg{width:100%;height:auto;display:block}
+  aside{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+        position:sticky;top:16px;max-height:calc(100vh - 40px);overflow:auto}
+  @media(max-width:1020px){ .layout{grid-template-columns:1fr} aside{position:static;max-height:none} }
+
+  /* ---------- 图 ---------- */
+  .node{cursor:pointer}
+  .node .box{fill:#fff;stroke:#dbe4ef;stroke-width:1.5;transition:stroke .15s}
+  .node:hover .box{stroke:#9dbfe8}
+  .node.sel .box{stroke:#1554c0;stroke-width:2.6}
+  .node .t{font-size:15px;font-weight:700;fill:#1f2933}
+  .node .s{font-size:11px;fill:#5b6b7a}
+  .node .m{font-size:10.5px;fill:#8593a3}
+  .node .ico{font-size:19px}
+  .edge-line{fill:none;stroke-width:2.4;stroke-linecap:round;transition:stroke-width .15s,opacity .15s}
+  .edge-line.sel{stroke-width:4.2}
+  .edge-hit{fill:none;stroke:transparent;stroke-width:24;cursor:pointer}
+  .elabel{font-size:11px;fill:#5b6b7a;pointer-events:none;
+          paint-order:stroke;stroke:#fff;stroke-width:4px;stroke-linejoin:round}
+  .legend{font-size:11px;fill:#8593a3}
+  .edges.has-sel .edge-line:not(.sel){opacity:.35}
+  .nodes.has-sel .node:not(.sel){opacity:.45}
+  .stage-hint{text-align:center;color:var(--muted);font-size:11.5px;padding:2px 0 8px}
+
+  /* ---------- 面板 ---------- */
+  aside h2{font-size:16.5px;margin:0 0 6px;line-height:1.4}
+  aside h3{font-size:12.5px;color:var(--muted);letter-spacing:1px;margin:18px 0 6px;
+           font-weight:600;text-transform:none}
+  aside p{margin:6px 0}
+  .lead{color:#3d4c5c;font-size:13px}
+  .tags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 2px}
+  .tag{font-size:11px;padding:1px 9px;border-radius:20px;background:#eef2f7;color:#4a5b6c;border:1px solid #e0e7ef}
+  .tag.b{background:var(--blue-bg);color:var(--blue);border-color:#cfe0f8}
+  .tag.g{background:#e8f6ef;color:var(--green);border-color:#bfe5d2}
+  .tag.a{background:var(--amber-bg);color:var(--amber);border-color:#f0dcae}
+  aside ul{margin:6px 0;padding-left:20px}
+  aside li{margin:3px 0;font-size:13px}
+  .iface{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:8px 0;background:#fbfcfe}
+  .iface .row{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+  .iface .path{font-family:Consolas,"Courier New",monospace;font-size:12.5px;font-weight:600}
+  .iface .d{color:var(--muted);font-size:12px;margin-top:2px}
+  .mth{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:5px;letter-spacing:.5px}
+  .get{background:#e8f0fd;color:#1554c0}
+  .post{background:#e6f6ee;color:#0e7a4a}
+  .mqtt{background:#fdf0df;color:#9a6210}
+  .api{background:#eae7fb;color:#4b3fb0}
+  pre{background:#0f1a2a;color:#dce6f2;padding:10px 12px;border-radius:8px;font-size:11.5px;
+      line-height:1.55;overflow:auto;margin:8px 0}
+  code{font-family:Consolas,"Courier New",monospace;background:#eef2f7;padding:1px 5px;
+       border-radius:4px;font-size:12px;color:#b3261e}
+  .note{background:var(--amber-bg);border:1px solid #f0dcae;border-radius:8px;
+        padding:8px 12px;font-size:12.5px;color:#7a5200;margin:10px 0}
+  .tip{background:#eaf6ef;border:1px solid #bfe5d2;border-radius:8px;
+       padding:8px 12px;font-size:12.5px;color:#0e6b45;margin:10px 0}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:6px 0}
+  .chips button{font:inherit;font-size:12px;padding:4px 11px;border-radius:20px;cursor:pointer;
+    border:1px solid #d9e3ee;background:#fff;color:#3d4c5c}
+  .chips button:hover{border-color:#9dbfe8;background:#f4f9ff}
+  .kv{font-size:12.5px;color:#3d4c5c}
+  .kv b{display:inline-block;min-width:64px;margin-right:8px;color:var(--muted);font-weight:600}
+  footer{color:var(--muted);font-size:11.5px;text-align:center;padding:0 24px 26px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>寻检车云控 · 五端网络拓扑</h1>
+  <div class="sub">点击<b>节点</b>看这一端是什么，点击<b>连线</b>看这一段传什么 · 实例 9f149bee02 / cn-north-4 · 2026-11-08</div>
+</header>
+
+<div class="layout">
+  <div class="stage">
+    <svg viewBox="0 0 1160 800" role="img" aria-label="五端网络拓扑图">
+      <defs>
+        <marker id="arw-b" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#2f6fbf"></path>
+        </marker>
+        <marker id="arw-g" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#1f7a5a"></path>
+        </marker>
+        <marker id="arw-o" viewBox="0 0 10 10" refX="9" refY="5"
+                markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0,0 L10,5 L0,10 z" fill="#b06a12"></path>
+        </marker>
+      </defs>
+
+      <!-- ================= 连线（先画，压在节点下面） ================= -->
+      <g class="edges" id="edges">
+        <!-- ① → ② -->
+        <path class="edge-line" data-id="e1" d="M195,162 C195,215 480,202 520,250"
+              stroke="#2f6fbf" marker-end="url(#arw-b)"></path>
+        <path class="edge-hit" data-id="e1" d="M195,162 C195,215 480,202 520,250"></path>
+
+        <!-- ⑤ → ② -->
+        <path class="edge-line" data-id="e2" d="M965,162 C965,215 680,202 640,250"
+              stroke="#2f6fbf" marker-end="url(#arw-b)"></path>
+        <path class="edge-hit" data-id="e2" d="M965,162 C965,215 680,202 640,250"></path>
+
+        <!-- ② ↔ ③ -->
+        <path class="edge-line" data-id="e3" d="M580,342 L580,440"
+              stroke="#1f7a5a" marker-start="url(#arw-g)" marker-end="url(#arw-g)"></path>
+        <path class="edge-hit" data-id="e3" d="M580,342 L580,440"></path>
+
+        <!-- ③ ↔ ④ -->
+        <path class="edge-line" data-id="e4" d="M580,532 L580,630"
+              stroke="#b06a12" marker-start="url(#arw-o)" marker-end="url(#arw-o)"></path>
+        <path class="edge-hit" data-id="e4" d="M580,532 L580,630"></path>
+      </g>
+
+      <!-- 连线标签 -->
+      <text class="elabel" x="330" y="192" text-anchor="middle">HTTP · 轮询 2s / 同步命令</text>
+      <text class="elabel" x="828" y="192" text-anchor="middle">HTTP · 轮询 2s</text>
+      <text class="elabel" x="594" y="379">HTTPS OpenAPI</text>
+      <text class="elabel" x="594" y="572">MQTTS 8883</text>
+
+      <!-- ================= 节点 ================= -->
+      <g class="nodes" id="nodes">
+        <!-- ① APP -->
+        <g class="node" data-id="app">
+          <rect class="box" x="70" y="70" width="250" height="92" rx="14"></rect>
+          <rect x="70" y="82" width="3.5" height="68" rx="2" fill="#2f6fbf"></rect>
+          <text class="ico" x="90" y="118">📱</text>
+          <text class="t" x="122" y="108">鸿蒙 APP</text>
+          <text class="s" x="122" y="128">应用端 · 零云凭证</text>
+          <text class="m" x="122" y="147">GET /status · POST /command</text>
+        </g>
+
+        <!-- ⑤ 视图端 -->
+        <g class="node" data-id="view">
+          <rect class="box" x="840" y="70" width="250" height="92" rx="14"></rect>
+          <rect x="840" y="82" width="3.5" height="68" rx="2" fill="#6b7c93"></rect>
+          <text class="ico" x="860" y="118">🖥</text>
+          <text class="t" x="892" y="108">视图端（浏览器）</text>
+          <text class="s" x="892" y="128">观察 / 调试 · 零云凭证</text>
+          <text class="m" x="892" y="147">GET /status · 俯视图 / 控制台</text>
+        </g>
+
+        <!-- ② 后端 -->
+        <g class="node" data-id="backend">
+          <rect class="box" x="455" y="250" width="250" height="92" rx="14"></rect>
+          <rect x="455" y="262" width="3.5" height="68" rx="2" fill="#1554c0"></rect>
+          <text class="ico" x="475" y="298">🧩</text>
+          <text class="t" x="507" y="288">业务后端 Flask</text>
+          <text class="s" x="507" y="308">唯一持有 AK/SK · :8000</text>
+          <text class="m" x="507" y="327">白名单 · 审计 · 凭证隔离</text>
+        </g>
+
+        <!-- ③ IoTDA -->
+        <g class="node" data-id="iotda">
+          <rect class="box" x="455" y="440" width="250" height="92" rx="14"></rect>
+          <rect x="455" y="452" width="3.5" height="68" rx="2" fill="#1f7a5a"></rect>
+          <text class="ico" x="475" y="488">☁️</text>
+          <text class="t" x="507" y="478">华为云 IoTDA</text>
+          <text class="s" x="507" y="498">标准版 S0 · 9f149bee02</text>
+          <text class="m" x="507" y="517">设备影子 · 命令下发 · 物模型</text>
+        </g>
+
+        <!-- ④ 小车 -->
+        <g class="node" data-id="car">
+          <rect class="box" x="455" y="630" width="250" height="92" rx="14"></rect>
+          <rect x="455" y="642" width="3.5" height="68" rx="2" fill="#b06a12"></rect>
+          <text class="ico" x="475" y="678">🚗</text>
+          <text class="t" x="507" y="668">模拟小车</text>
+          <text class="s" x="507" y="688">MQTT 客户端 · device_id+secret</text>
+          <text class="m" x="507" y="707">car_mqtt_client_001.py</text>
+        </g>
+      </g>
+
+      <!-- 图例 -->
+      <text class="legend" x="70" y="772">━━ 蓝 = HTTP/JSON（APP、网页 → 后端）　━━ 绿 = HTTPS OpenAPI（后端 → 云）　━━ 橙 = MQTTS（云 ↔ 小车）</text>
+    </svg>
+    <div class="stage-hint">连线可点、节点可点；点击空白处回到总览</div>
+  </div>
+
+  <aside id="panel"></aside>
+</div>
+
+<footer>数据来自 2026-11-07 实测配置 · 配套文档：接口文档.md / 项目交接.md</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var OVERVIEW = [
+    '<h2>五端四条链路</h2>',
+    '<p class="lead">这套系统只做一件事：把"点一下按钮"变成"小车动一下"，再把"小车在哪"变成"屏幕上的一个点"。中间有四段协议，每段解决一个不同的问题。</p>',
+    '<div class="tags"><span class="tag b">凭证只在需要它的那一层</span><span class="tag">2026-11-07 实测通过</span></div>',
+    '<h3>五端</h3>',
+    '<div class="chips">',
+    '<button data-go="node:app">① 鸿蒙 APP</button>',
+    '<button data-go="node:backend">② 业务后端</button>',
+    '<button data-go="node:iotda">③ 华为云 IoTDA</button>',
+    '<button data-go="node:car">④ 模拟小车</button>',
+    '<button data-go="node:view">⑤ 视图端</button>',
+    '</div>',
+    '<h3>四条链路</h3>',
+    '<div class="chips">',
+    '<button data-go="edge:e1">①→② HTTP</button>',
+    '<button data-go="edge:e2">⑤→② HTTP</button>',
+    '<button data-go="edge:e3">②↔③ OpenAPI</button>',
+    '<button data-go="edge:e4">③↔④ MQTT</button>',
+    '</div>',
+    '<h3>为什么是这个形状</h3>',
+    '<ul>',
+    '<li><b>中间必须有一层后端</b>：AK/SK 一旦下发到手机就等于公开，所以凭证留在服务端，APP 只认一个 8000 端口。</li>',
+    '<li><b>后端不只是转发</b>：它做命令白名单（只放行 5 条）、审计留痕（commands.log）、协议简化（把云 API 包成 3 个接口）。</li>',
+    '<li><b>小车是客户端不是服务端</b>：上了云之后没有谁是固定 IP，所有设备都主动连 broker，这是 MQTT 相对 TCP 直连的根本区别。</li>',
+    '<li><b>状态靠影子</b>：设备间歇在线，云端替它记住最后状态，APP 读影子而不是"连设备"。</li>',
+    '</ul>',
+    '<div class="tip">想快速验收：车端 + 后端各开一个终端，然后 <code>curl http://127.0.0.1:8000/status</code>，能返回坐标就说明 ②③④ 三段都通了。</div>'
+  ].join('');
+
+  var DATA = {
+
+    /* ------------------------------------------------------------------ 节点 */
+    app: {
+      title: '① 鸿蒙 APP「寻检车云控」',
+      tags: ['<span class="tag b">零云凭证</span>', '<span class="tag">HarmonyOS 6.0 / API 22</span>', '<span class="tag">ArkTS / ArkUI</span>'],
+      body: [
+        '<p class="lead">唯一的人机界面。把场地画出来、把六项指标摊开、把四个方向键变成 HTTP 请求。它不知道"华为云"这三个字。</p>',
+        '<h3>职责</h3>',
+        '<ul>',
+        '<li>Canvas 画 800×600 场地，每 100ms 按 <code>speed×0.2 px/s</code> 做<b>航位推算</b>，让车看起来是连续移动的</li>',
+        '<li>每 2 秒轮询 <code>/status</code>，白圈标出最近一次影子上报的真实位置，到达时校正漂移</li>',
+        '<li>按钮点击 → <code>POST /command</code>，请求在途时禁用全部按钮，防连点刷额度</li>',
+        '<li>右上角 ⚙ 改后端地址，<code>PersistentStorage</code> 持久化，重启不丢</li>',
+        '</ul>',
+        '<h3>它调用的接口</h3>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/status</span></div><div class="d">每 2 秒 · 拿 x/y/heading/speed/battery/time</div></div>',
+        '<div class="iface"><div class="row"><span class="mth post">POST</span><span class="path">/command</span></div><div class="d">点按钮时 · 同步等车端回执，<code>executed:true</code> 才算真执行</div></div>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/health</span></div><div class="d">启动时一次 · 点亮"车在线"徽标</div></div>',
+        '<h3>关键文件</h3>',
+        '<p class="kv"><b>数据层</b>entry/src/main/ets/common/CarApi.ets</p>',
+        '<p class="kv"><b>界面</b>entry/src/main/ets/pages/Index.ets</p>',
+        '<p class="kv"><b>权限</b>module.json5（INTERNET）+ network_config.json（放行明文 http）</p>',
+        '<div class="note">⚠ 读超时 12 秒，比后端等回执的 20 秒短。极端情况下 APP 先报"连不上后端"，但车可能已经执行了——查 <code>commands.log</code> 比看界面准。</div>'
+      ].join('')
+    },
+
+    view: {
+      title: '⑤ 视图端（浏览器）',
+      tags: ['<span class="tag">零云凭证</span>', '<span class="tag">原生 JS + Canvas</span>', '<span class="tag">无框架无依赖</span>'],
+      body: [
+        '<p class="lead">就是浏览器。同一个后端的另一个消费者，用来在没有手机时观察和调试。</p>',
+        '<h3>两个页面，都属这一端</h3>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/view</span></div><div class="d">car_cloud_view.html —— <b>只读</b>俯视图，只轮询 /status</div></div>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/</span><span class="path">/console</span></div><div class="d">car_console.html —— <b>可看可控</b>：D-pad、速度滑块、指令记录（含往返耗时 ms）</div></div>',
+        '<h3>它调用的接口</h3>',
+        '<ul>',
+        '<li><code>GET /status</code> —— 2 秒轮询（两个页面都调）</li>',
+        '<li><code>POST /command</code> —— 仅控制台页，浏览器会先发 OPTIONS 预检</li>',
+        '</ul>',
+        '<h3>为什么页面由后端托管</h3>',
+        '<p>页面和接口同源 → 浏览器根本不触发 CORS 检查；手机连同一热点打开 <code>http://172.20.10.2:8000/</code> 就能操作，等于先看一眼"APP 长什么样"。</p>',
+        '<div class="note">⚠ 双击本地文件（file://）打开也能用，走的是 CORS 那条路——所以后端必须带 <code>Access-Control-Allow-Headers: Content-Type</code>，否则 POST 会被预检拦死。</div>'
+      ].join('')
+    },
+
+    backend: {
+      title: '② 业务后端（Flask）',
+      tags: ['<span class="tag a">持有 AK/SK</span>', '<span class="tag">监听 0.0.0.0:8000</span>', '<span class="tag">Flask 3.1</span>'],
+      body: [
+        '<p class="lead">整个系统唯一持有云凭证的地方。它的存在本身就是安全设计：APP 越干净，泄露面越小。</p>',
+        '<h3>三件事</h3>',
+        '<ul>',
+        '<li><b>凭证隔离</b>：AK/SK 只在 config.json，客户端零持有</li>',
+        '<li><b>命令管控</b>：白名单只放行 FORWARD / BACK / LEFT / RIGHT / STOP，参数校验 0~100</li>',
+        '<li><b>审计</b>：每条命令与回执写 commands.log（谁、何时、结果）</li>',
+        '</ul>',
+        '<h3>对外 5 条路由</h3>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/health</span> · <span class="path">/status</span> · <span class="path">/command</span></div><div class="d">业务接口（见 ①→② 连线）</div></div>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/</span>、<span class="path">/console</span>、<span class="path">/view</span></div><div class="d">把 web/ 下的两个页面发给浏览器</div></div>',
+        '<h3>它调用的云 API</h3>',
+        '<p class="kv"><b>ShowDevice</b>查设备状态（ONLINE / OFFLINE）</p>',
+        '<p class="kv"><b>ShowDeviceShadow</b>读设备影子（5 属性）</p>',
+        '<p class="kv"><b>CreateCommand</b>下发同步命令，等回执</p>',
+        '<h3>关键文件</h3>',
+        '<p class="kv"><b>主程序</b>server/app.py</p>',
+        '<p class="kv"><b>凭证</b>server/config.json（敏感，勿外传）</p>',
+        '<p class="kv"><b>审计</b>server/commands.log</p>',
+        '<p class="kv"><b>启动</b>D:\\miniconda\\python.exe app.py</p>',
+        '<div class="note">⚠ <code>/status</code> 一次请求要打<b>两次</b>云 API（影子 + 设备详情）。按 1 秒轮询一天就是十几万次，免费额度扛不住——APP 和网页都定在 2 秒，原因在这。</div>'
+      ].join('')
+    },
+
+    iotda: {
+      title: '③ 华为云 IoTDA',
+      tags: ['<span class="tag g">标准版免费单元 S0</span>', '<span class="tag">9f149bee02</span>', '<span class="tag">cn-north-4</span>'],
+      body: [
+        '<p class="lead">设备接入平台。它替你做三件重复劳动：设备身份校验、命令下发路由、最后状态的缓存（影子）。</p>',
+        '<h3>两个专属域名（别用通用域名）</h3>',
+        '<p class="kv"><b>设备侧</b>9f149bee02.st1.iotda-device.cn-north-4.myhuaweicloud.com:8883</p>',
+        '<p class="kv"><b>应用侧</b>https://9f149bee02.st1.iotda-app.cn-north-4.myhuaweicloud.com</p>',
+        '<div class="note">⚠ 用通用的 <code>iotda.cn-north-4.myhuaweicloud.com</code> 会恒定 403 <code>IOTDA.000021</code>，而且报错文案会骗你说"用户不存在"——本项目最大的坑。</div>',
+        '<h3>物模型（产品的"说明书"）</h3>',
+        '<p class="kv"><b>服务</b>car</p>',
+        '<p class="kv"><b>属性</b>x / y / heading / speed / battery</p>',
+        '<p class="kv"><b>命令</b>FORWARD / BACK / LEFT / RIGHT / STOP</p>',
+        '<h3>设备影子</h3>',
+        '<p>为每台设备缓存"最后一次上报的状态"。设备掉线后 APP 仍能读到最后位置；重新上线自动刷新。这是 IoT 平台解决"设备间歇在线"的标准机制。</p>',
+        '<h3>额度</h3>',
+        '<p class="kv"><b>设备数</b>1000</p>',
+        '<p class="kv"><b>消息</b>每天 1 万条</p>',
+        '<div class="note">⚠ 同一 <code>device_id</code> 只允许一条 MQTT 连接。跑两份客户端会互踢，在控制台手动"模拟设备"也会把脚本踢掉。</div>'
+      ].join('')
+    },
+
+    car: {
+      title: '④ 模拟小车（MQTT 客户端）',
+      tags: ['<span class="tag a">device_id + secret</span>', '<span class="tag">paho-mqtt 2.2</span>', '<span class="tag">MQTTS/TLS</span>'],
+      body: [
+        '<p class="lead">角色和 TCP 阶段完全相反：那时它是等人来连的服务端，现在它是主动连云的客户端。这是理解 MQTT 的关键一步——所有设备都是客户端，broker 才是服务端。</p>',
+        '<h3>运动模型</h3>',
+        '<ul>',
+        '<li>场地 800×600，初始在中心 (400,300)，电量 87.0</li>',
+        '<li>每秒推进一格，步长放大 10 倍保持速度感；<code>heading=0</code> 朝上，左右转各 15°</li>',
+        '<li>边界 10 ~ 790 / 10 ~ 590，电量最低兜底 20.0</li>',
+        '</ul>',
+        '<h3>鉴权（一机一密，官方算法）</h3>',
+        '<pre>timestamp = UTC 时间 YYYYMMDDHH   ← 必须 UTC\npassword  = HMAC-SHA256(key=timestamp, msg=secret)\nclientId  = {device_id}_0_1_{timestamp}\nusername  = {device_id}</pre>',
+        '<h3>上报节奏（省额度）</h3>',
+        '<p class="kv"><b>运动中</b>5 秒一次</p>',
+        '<p class="kv"><b>静止</b>60 秒一次（证明还活着）</p>',
+        '<p class="kv"><b>另外</b>连上云、执行完命令都立即补一帧</p>',
+        '<h3>关键文件</h3>',
+        '<p class="kv"><b>在用</b>server/car_mqtt_client_001.py</p>',
+        '<p class="kv"><b>留空</b>server/car_mqtt_client_002.py（启动即提示退出，防呆）</p>',
+        '<p class="kv"><b>密钥</b>DEVICES-KEY-*.txt（脚本自动加载，可覆盖代码常量）</p>',
+        '<div class="note">⚠ 教学脚本用 <code>CERT_NONE</code> 跳过证书校验。生产环境必须校验证书，否则 TLS 等于没开。</div>'
+      ].join('')
+    },
+
+    /* ------------------------------------------------------------------ 连线 */
+    e1: {
+      title: '① → ②　鸿蒙 APP → 业务后端',
+      tags: ['<span class="tag b">HTTP/1.1 · JSON</span>', '<span class="tag">明文（局域网）</span>', '<span class="tag">短连接</span>'],
+      body: [
+        '<p class="lead">APP 唯一的外呼方向。三条接口，全部是"请求—响应"，没有长连接、没有推送。</p>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/health</span></div>',
+        '<div class="d">启动时打一次。返回 <code>{"ok":true,"device_online":true}</code></div></div>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/status</span></div>',
+        '<div class="d">每 2 秒轮询，数据源是设备影子</div>',
+        '<pre>{"ok":true,"online":true,"x":427,"y":312,\n "heading":135,"speed":0,"battery":83.2,\n "time":"20261107T092226Z"}</pre></div>',
+        '<div class="iface"><div class="row"><span class="mth post">POST</span><span class="path">/command</span></div>',
+        '<div class="d">点按钮时。同步接口，等车端回执才返回（实测 300~400ms，最长约 20s）</div>',
+        '<pre>请求 {"cmd":"FORWARD","speed":60}\n返回 {"ok":true,"command_id":"…",\n      "executed":true,"response_name":"FORWARD"}</pre></div>',
+        '<h3>参数约束</h3>',
+        '<p class="kv"><b>cmd</b>FORWARD / BACK / LEFT / RIGHT / STOP（大小写不敏感）</p>',
+        '<p class="kv"><b>speed</b>仅前进/后退需要，0~100 <b>整数</b>（60.0、"60" 都不收）</p>',
+        '<h3>错误</h3>',
+        '<p class="kv"><b>400</b>命令不在白名单 / speed 非法</p>',
+        '<p class="kv"><b>502</b>云端调用失败（凭证、端点、设备离线）</p>',
+        '<div class="note">⚠ 地址随环境变：模拟器 <code>http://10.0.2.2:8000</code>，真机是电脑局域网 IP（<code>ipconfig</code> 查，换网络就变）。APP 连接超时 4s、读超时 12s。</div>'
+      ].join('')
+    },
+
+    e2: {
+      title: '⑤ → ②　视图端 → 业务后端',
+      tags: ['<span class="tag b">HTTP/1.1 · JSON</span>', '<span class="tag">浏览器 fetch</span>', '<span class="tag">受 CORS 约束</span>'],
+      body: [
+        '<p class="lead">和 ①→② 是<b>同一套接口</b>，区别只在客户端是浏览器，多了一层同源策略。</p>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/status</span></div><div class="d">2 秒轮询，按 2 秒是刻意的：影子运动时 5 秒才更新，轮再快也没新数据</div></div>',
+        '<div class="iface"><div class="row"><span class="mth post">POST</span><span class="path">/command</span></div><div class="d">仅控制台页 car_console.html 会调；俯视图是纯只读</div></div>',
+        '<div class="iface"><div class="row"><span class="mth get">GET</span><span class="path">/</span><span class="path">/view</span></div><div class="d">页面本身也由后端发（同源托管）</div></div>',
+        '<h3>CORS 两步</h3>',
+        '<ul>',
+        '<li>简单请求（GET）只需要 <code>Access-Control-Allow-Origin</code></li>',
+        '<li>JSON 的 POST 会先发 <code>OPTIONS</code> 预检，必须再放行 <code>Allow-Headers: Content-Type</code>，否则请求根本发不出去</li>',
+        '</ul>',
+        '<div class="tip">页面从 <code>http://127.0.0.1:8000/</code> 打开时不涉及 CORS；只有双击本地文件（file://）才走上面那两步。</div>'
+      ].join('')
+    },
+
+    e3: {
+      title: '② ↔ ③　后端 → 华为云 OpenAPI',
+      tags: ['<span class="tag g">HTTPS</span>', '<span class="tag">AK/SK 签名</span>', '<span class="tag">IoTDA SDK v5</span>'],
+      body: [
+        '<p class="lead">后端拿着账号级凭证去调云。这一段是整条链路里最容易 403 的地方，三个要素缺一必错。</p>',
+        '<div class="iface"><div class="row"><span class="mth api">API</span><span class="path">ShowDevice</span></div><div class="d">查设备详情，取 <code>status</code>（ONLINE/OFFLINE）→ 给 /health、/status 用</div></div>',
+        '<div class="iface"><div class="row"><span class="mth api">API</span><span class="path">ShowDeviceShadow</span></div><div class="d">读设备影子 → 压平成 x/y/heading/speed/battery/time。battery 是 Decimal，必须转 float</div></div>',
+        '<div class="iface"><div class="row"><span class="mth api">API</span><span class="path">CreateCommand</span></div><div class="d">下发同步命令，等车端回执。<code>paras</code> 无参也必须传 <code>{}</code>，传 None 报 IOTDA.000006</div></div>',
+        '<h3>认证三要素</h3>',
+        '<pre>credentials = BasicCredentials(ak, sk, project_id)\ncredentials.with_derived_predicate(...)   # ② 衍生签名\nRegion(region, 实例专属端点)               # ① 专用端点\n# ③ 请求里【不带】instance_id</pre>',
+        '<p class="kv"><b>① 端点</b>专属域名，不能用通用域名</p>',
+        '<p class="kv"><b>② 签名</b>专属域名触发 V11 衍生签名</p>',
+        '<p class="kv"><b>③ 参数</b>实例已在域名里，带了反而 403</p>',
+        '<div class="note">⚠ 报错 <code>403 IOTDA.000021</code> 的文案是"User not found by IAM token or not subscribed to IoTDA"，极具误导性——别去查权限，先跑 <code>server/test_api_auth.py</code> 的 4 组矩阵定位。</div>'
+      ].join('')
+    },
+
+    e4: {
+      title: '③ ↔ ④　华为云 ↔ 模拟小车（MQTT）',
+      tags: ['<span class="tag a">MQTTS / TLS 8883</span>', '<span class="tag">QoS 1</span>', '<span class="tag">设备主动连</span>'],
+      body: [
+        '<p class="lead">一条长连接上跑三个方向的数据：命令下行、回执上行、属性上行。全部用主题（topic）路由，不靠端口。</p>',
+        '<div class="iface"><div class="row"><span class="mth mqtt">CONNECT</span><span class="path">一机一密</span></div>',
+        '<div class="d">clientId / username / password 三要素，时间戳必须 UTC</div>',
+        '<pre>clientId = {device_id}_0_1_{timestamp}\nusername = {device_id}\npassword = HMAC-SHA256(key=ts, msg=secret)</pre></div>',
+        '<div class="iface"><div class="row"><span class="mth mqtt">SUB</span><span class="path">$oc/devices/{id}/sys/commands/#</span></div><div class="d">订阅命令主题，等云端推送</div></div>',
+        '<div class="iface"><div class="row"><span class="mth mqtt">PUB</span><span class="path">.../commands/request_id={id}</span></div><div class="d">云端下发命令。<code>request_id</code> 在<b>主题尾部</b>，不在 payload 里</div>',
+        '<pre>{"service_id":"car","command_name":"FORWARD",\n "paras":{"speed":60},"request_id":"…"}</pre></div>',
+        '<div class="iface"><div class="row"><span class="mth mqtt">PUB</span><span class="path">.../commands/response/request_id={id}</span></div><div class="d">车端回执。<b>这是后端 executed:true 的唯一依据</b></div>',
+        '<pre>{"result_code":0,"response_name":"FORWARD"}</pre></div>',
+        '<div class="iface"><div class="row"><span class="mth mqtt">PUB</span><span class="path">$oc/devices/{id}/sys/properties/report</span></div><div class="d">属性上报 → 云端写影子 → 后端 /status 才读得到</div>',
+        '<pre>{"services":[{"service_id":"car",\n "properties":{"x":427,"y":312,"heading":135,\n               "speed":0,"battery":83.2}}]}</pre></div>',
+        '<div class="note">⚠ 常见 <code>rc=4</code> 鉴权失败：HMAC 的参数顺序反了，或时间戳用了北京时间。另一个坑：同一 device_id 只能一条连接，跑两份互踢。</div>'
+      ].join('')
+    }
+  };
+
+  var panel = document.getElementById('panel');
+  var svg = document.querySelector('svg');
+  var edgesG = document.getElementById('edges');
+  var nodesG = document.getElementById('nodes');
+
+  function clearSel() {
+    var i;
+    var ns = nodesG.querySelectorAll('.node');
+    for (i = 0; i < ns.length; i++) { ns[i].classList.remove('sel'); }
+    var es = edgesG.querySelectorAll('.edge-line');
+    for (i = 0; i < es.length; i++) { es[i].classList.remove('sel'); }
+    nodesG.classList.remove('has-sel');
+    edgesG.classList.remove('has-sel');
+  }
+
+  function showOverview() {
+    clearSel();
+    panel.innerHTML = OVERVIEW;
+    panel.scrollTop = 0;
+  }
+
+  function showNode(id) {
+    var d = DATA[id];
+    if (!d) { return; }
+    clearSel();
+    nodesG.classList.add('has-sel');
+    var g = nodesG.querySelector('.node[data-id="' + id + '"]');
+    if (g) { g.classList.add('sel'); }
+    panel.innerHTML = '<h2>' + d.title + '</h2><div class="tags">' + d.tags.join('') + '</div>' + d.body;
+    panel.scrollTop = 0;
+  }
+
+  function showEdge(id) {
+    var d = DATA[id];
+    if (!d) { return; }
+    clearSel();
+    edgesG.classList.add('has-sel');
+    var line = edgesG.querySelector('.edge-line[data-id="' + id + '"]');
+    if (line) { line.classList.add('sel'); }
+    panel.innerHTML = '<h2>' + d.title + '</h2><div class="tags">' + d.tags.join('') + '</div>' + d.body;
+    panel.scrollTop = 0;
+  }
+
+  var ns = nodesG.querySelectorAll('.node');
+  for (var i = 0; i < ns.length; i++) {
+    (function (g) {
+      g.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        showNode(g.getAttribute('data-id'));
+      });
+    })(ns[i]);
+  }
+
+  var hs = edgesG.querySelectorAll('.edge-hit');
+  for (var j = 0; j < hs.length; j++) {
+    (function (p) {
+      p.addEventListener('click', function (ev) {
+        ev.stopPropagation();
+        showEdge(p.getAttribute('data-id'));
+      });
+    })(hs[j]);
+  }
+
+  /* 面板里的快捷按钮 */
+  panel.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t || !t.getAttribute) { return; }
+    var go = t.getAttribute('data-go');
+    if (!go) { return; }
+    var parts = go.split(':');
+    if (parts[0] === 'node') { showNode(parts[1]); }
+    if (parts[0] === 'edge') { showEdge(parts[1]); }
+  });
+
+  /* 点空白回总览 */
+  svg.addEventListener('click', function () { showOverview(); });
+
+  showOverview();
+})();
+</script>
+</body>
+</html>

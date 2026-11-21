@@ -1,0 +1,11 @@
+{
+  "_comment": "设备密钥模板。复制本文件到项目根目录的 明文凭证/devices.local.json，填入自己的密钥后即可运行车端脚本。该文件含真实密钥，已被 .gitignore 排除，切勿提交。也可用环境变量 IOTDA_SECRET_001 / IOTDA_SECRET_002 提供密钥，免去落盘。",
+  "mycar_001": {
+    "device_id": "xxxx_mycar_001",
+    "secret": "xxxx"
+  },
+  "mycar_002": {
+    "device_id": "xxxx_mycar_002",
+    "secret": "xxxx"
+  }
+}

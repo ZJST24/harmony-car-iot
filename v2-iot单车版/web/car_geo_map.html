@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻检车 · 合规地理底图（GCJ-02）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+         background: #e8edf4; color: #1f2d3d; min-height: 100vh;
+         padding: 20px 16px 28px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  header, #nav, #main, #foot { width: min(1180px, 96vw); }
+  header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header h1 span { font-size: 12px; font-weight: 400; color: #8896a6; margin-left: 8px; }
+  #nav { font-size: 12px; color: #5a6b7f; text-align: right; }
+  #nav a { color: #2f7bd9; text-decoration: none; margin-left: 12px; }
+  #main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 12px; align-items: start; }
+  @media (max-width: 900px) { #main { grid-template-columns: 1fr; } }
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 2px 10px rgba(31,45,61,.08); padding: 14px; }
+  #mapWrap { position: relative; }
+  #map { width: 100%; height: 70vh; min-height: 420px; border-radius: 8px; background: #f3f7fb; }
+  #overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+             background: rgba(247,250,253,.96); border-radius: 8px; padding: 24px; text-align: center; }
+  #overlay .box { max-width: 520px; }
+  #overlay h2 { font-size: 16px; margin-bottom: 10px; }
+  #overlay p { font-size: 13px; color: #5a6b7f; line-height: 1.9; margin-bottom: 8px; }
+  #overlay code { background: #eef3f9; padding: 2px 5px; border-radius: 4px; font-size: 12px; }
+  #side h3 { font-size: 13px; margin-bottom: 8px; }
+  #side .kv { font-size: 12px; color: #5a6b7f; line-height: 1.9; word-break: break-all; }
+  #side .kv b { color: #1f2d3d; }
+  #side hr { border: none; border-top: 1px solid #eef2f7; margin: 12px 0; }
+  #carList { font-size: 12px; }
+  .carRow { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid #f4f7fa; }
+  .carRow:last-child { border: none; }
+  .swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .carRow .nm { font-weight: 600; min-width: 64px; }
+  .carRow .geo { color: #5a6b7f; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .ok { color: #1c7f4b; } .warn { color: #c07a12; } .bad { color: #c02b2b; }
+  #compliance { font-size: 11.5px; color: #8896a6; line-height: 1.8; }
+  #foot { font-size: 12px; color: #9aa7b5; text-align: center; line-height: 1.8; }
+</style>
+<!-- 1) 官方 key 代理模式：SDK 加载前配置，页面里不写任何 key -->
+<script type="text/javascript">
+  window._TMapSecurityConfig = {
+    serviceHost: 'http://127.0.0.1:__WB_HTTP_PORT__/_TMapService/_wbt/__WB_TMAP_SECRET__',
+  };
+</script>
+<!-- 2) 官方 CDN，URL 不带 key 参数 -->
+<script src="https://map.qq.com/api/gljs?v=1.exp"></script>
+</head>
+<body>
+
+<header>
+  <h1>🗺 合规地理底图<span>M3 场地坐标映射 · GCJ-02 · 腾讯位置服务</span></h1>
+  <span id="status" style="font-size:12px;color:#5a6b7f">初始化中…</span>
+</header>
+<div id="nav">
+  只读页 · 不提供任何控制按钮
+  <a href="view">本地矢量场地</a><a href="console">控制台</a><a href="admin">管理台</a>
+</div>
+
+<div id="main">
+  <div class="card" id="mapWrap">
+    <div id="map"></div>
+    <div id="overlay"><div class="box">
+      <h2 id="ovTitle">正在初始化合规底图…</h2>
+      <p id="ovText">加载场地坐标系与车辆位置。</p>
+    </div></div>
+  </div>
+
+  <div class="card" id="side">
+    <h3>坐标标定状态</h3>
+    <div class="kv" id="calib">读取 /field 中…</div>
+    <hr>
+    <h3>车辆位置（GCJ-02）</h3>
+    <div id="carList"><div class="kv">等待 /fleet_status…</div></div>
+    <hr>
+    <h3>合规说明</h3>
+    <div id="compliance">加载中…</div>
+  </div>
+</div>
+
+<div id="foot">
+  默认场地视图是 <b>/view</b> 的本地自绘矢量底图（不加载在线瓦片、断网可用）；本页只在场地已用合规服务商现场标定后叠加真实地理底图。<br>
+  地理位置只在本系统内部使用，不采集、不公开他人位置数据；本页不写任何地图 key，SDK 请求经官方代理转发。
+</div>
+
+<script src="field.js"></script>
+<script>
+"use strict";
+/* 合规要点：
+   - 只用腾讯位置服务 GL JS 官方代理模式；SDK URL 不带 key，页面零密钥。
+   - 坐标系 GCJ-02；未现场标定（geo.calibrated=false）时绝不输出/展示经纬度，
+     避免把示例原点 (0,0) 当成真实位置。
+   - 不绘制国界/行政区划，不标注敏感坐标；不引用官方 demo 图片资源。
+*/
+var $ = function (id) { return document.getElementById(id); };
+var AUTH_KEY = "carAuthToken";
+var PALETTE = ["#2f7bd9", "#e07a2f", "#1c9b6c", "#8b5cc7", "#c74b7a", "#1596a8"];
+var map = null, markers = null, polylines = null, polygons = null;
+var trails = {};                          // device_id -> [{lng, lat}]
+var proxyReady = window._TMapSecurityConfig &&
+                 window._TMapSecurityConfig.serviceHost.indexOf("__WB_") === -1;
+
+function baseUrl() {
+  return (location.protocol === "http:" || location.protocol === "https:")
+    ? location.origin : "http://127.0.0.1:8000";
+}
+function api(path) { return baseUrl() + path; }
+function esc(s) {
+  return String(s === undefined || s === null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+function opts(o) {
+  o = o || {};
+  var t = "";
+  try { t = localStorage.getItem(AUTH_KEY) || ""; } catch (e) {}
+  if (t) o.headers = Object.assign({}, o.headers || {}, { "X-Auth-Token": t });
+  return o;
+}
+function setStatus(text, cls) { $("status").textContent = text; $("status").className = cls || ""; }
+function showOverlay(title, html) {
+  $("ovTitle").textContent = title;
+  $("ovText").innerHTML = html;
+  $("overlay").style.display = "flex";
+}
+function hideOverlay() { $("overlay").style.display = "none"; }
+
+function markerSvg(color) {
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">' +
+            '<circle cx="14" cy="14" r="11" fill="' + color + '" stroke="white" stroke-width="3"/>' +
+            '<circle cx="14" cy="14" r="3.5" fill="white"/></svg>';
+  return "data:image/svg+xml," + encodeURIComponent(svg);
+}
+
+function initMap(field) {
+  if (!window.TMap) {
+    showOverlay("地理底图 SDK 未加载",
+      "请确认网络可访问 <code>map.qq.com</code>；课堂离线时请改用 <a href='view'>本地矢量场地（/view）</a>，功能不受影响。");
+    setStatus("SDK 未加载", "warn");
+    return false;
+  }
+  if (!proxyReady) {
+    // 通过 Flask 直接打开时，WorkBuddy 运行时占位符没有被替换，代理不可用。
+    // 绝不退化成境外底图，也不伪造 key：如实提示并保留本地矢量方案。
+    showOverlay("当前环境未提供地图代理",
+      "本页使用腾讯位置服务官方 <b>key 代理模式</b>，页面内不写任何 key。" +
+      "请在 <b>WorkBuddy 预览面板</b>中打开本页（运行时会自动注入代理地址），" +
+      "或自行到腾讯位置服务开放平台申请 key 并按非默认场景配置后端代理。<br>" +
+      "课堂离线演示请直接用 <a href='view'>本地矢量场地（/view）</a>。");
+    setStatus("代理未注入（预览面板可用）", "warn");
+    return false;
+  }
+  var center = new TMap.LatLng(field.origin_lat, field.origin_lng);
+  map = new TMap.Map("map", { zoom: 18, center: center });
+
+  var styles = {};
+  for (var i = 0; i < PALETTE.length; i++) {
+    styles["c" + i] = new TMap.MarkerStyle({
+      width: 28, height: 28, anchor: { x: 14, y: 14 }, src: markerSvg(PALETTE[i])
+    });
+  }
+  markers = new TMap.MultiMarker({ map: map, styles: styles, geometries: [] });
+  polylines = new TMap.MultiPolyline({
+    map: map,
+    styles: {
+      line: new TMap.PolylineStyle({ color: "#2f7bd9", width: 4, borderWidth: 1,
+                                    borderColor: "#ffffff", lineCap: "round" })
+    },
+    geometries: []
+  });
+  polygons = new TMap.MultiPolygon({
+    map: map,
+    styles: {
+      fence: new TMap.PolygonStyle({ color: "rgba(224,160,58,0.12)", showBorder: true,
+                                    borderColor: "#e0a03a", borderWidth: 2 })
+    },
+    geometries: []
+  });
+  // 安全边界：把场地 geofence 四角按同一套仿射映射转成 GCJ-02，避免两套坐标不一致
+  var poly = (FieldMap.cfg.geofence || {}).polygon || [];
+  if (poly.length >= 3) {
+    var path = poly.map(function (p) {
+      var g = FieldMap.toGeo(p[0], p[1]);
+      return new TMap.LatLng(g.lat, g.lng);
+    });
+    polygons.setGeometries([{ id: "fence", styleId: "fence", paths: path }]);
+  }
+  hideOverlay();
+  setStatus("已标定 · 实时位置", "ok");
+  return true;
+}
+
+function refresh() {
+  fetch(api("/fleet_status"), opts({ cache: "no-store" }))
+    .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+    .then(function (j) {
+      var rows = "", geos = [], lines = [], n = 0;
+      (j.devices || []).forEach(function (d, idx) {
+        var p = d.pos || {}, g = p.geo;
+        var color = PALETTE[idx % PALETTE.length];
+        rows += '<div class="carRow"><span class="swatch" style="background:' + color + '"></span>' +
+                '<span class="nm">' + esc(d.name) + "</span>" +
+                '<span class="' + (d.online ? "ok" : "warn") + '">' + (d.online ? "在线" : "离线") + "</span>" +
+                '<span class="geo">' + (g ? g.lng.toFixed(6) + ", " + g.lat.toFixed(6)
+                                         : "无坐标") + "</span></div>";
+        if (!g) return;
+        geos.push({ id: d.device_id, styleId: "c" + (idx % PALETTE.length),
+                    position: new TMap.LatLng(g.lat, g.lng) });
+        var t = trails[d.device_id] || (trails[d.device_id] = []);
+        var last = t[t.length - 1];
+        if (!last || last.lng !== g.lng || last.lat !== g.lat) {
+          t.push(g);
+          if (t.length > 80) t.shift();
+        }
+        if (t.length >= 2) {
+          lines.push({ id: d.device_id, styleId: "line",
+                       paths: t.map(function (q) { return new TMap.LatLng(q.lat, q.lng); }) });
+        }
+        n++;
+      });
+      $("carList").innerHTML = rows || '<div class="kv">暂无可见车辆</div>';
+      if (map && markers && polylines) {
+        markers.setGeometries(geos);
+        polylines.setGeometries(lines);
+      }
+      if (FieldMap.geoReady && n === 0) setStatus("已标定 · 等待车辆坐标", "warn");
+    })
+    .catch(function (e) {
+      $("carList").innerHTML = '<div class="kv bad">读取车队状态失败：' + esc(e.message) + "</div>";
+    });
+}
+
+FieldMap.load(api("/field"), opts({ cache: "no-store" })).then(function (F) {
+  var comp = (F.cfg && F.cfg.compliance) || {};
+  $("compliance").innerHTML =
+    "<b>底图</b>：" + esc(comp.base_map || "") + "<br>" + esc(comp.statement || "") +
+    "<br><b>允许</b>：" + esc((comp.allowed_providers || []).join(" / ")) +
+    "<br><b>禁止</b>：" + esc((comp.prohibited_providers || []).join(" / ")) +
+    "<br><b>坐标系</b>：" + esc(comp.datum || "GCJ-02") +
+    "<br><b>密钥</b>：" + esc(comp.key_rule || "");
+
+  if (!F.ready) {
+    $("calib").innerHTML = '<span class="bad">后端没有 /field</span>，请重启 app.py。';
+    showOverlay("后端未提供场地配置", "需要 M3 及以后的后端（GET /field）。");
+    setStatus("场地配置不可用", "bad");
+    return;
+  }
+  var geo = F.cfg.geo || {};
+  $("calib").innerHTML = "场地：<b>" + esc(F.cfg.name) + "</b><br>" +
+    "比例：1 逻辑单位 = <b>" + F.mpu + " m</b><br>" +
+    "基准点：" + (F.geoReady
+      ? "<span class='ok'>" + Number(geo.origin_lng).toFixed(6) + ", " +
+        Number(geo.origin_lat).toFixed(6) + "（GCJ-02，已校准）</span>"
+      : "<span class='warn'>未校准 · 后端不输出经纬度</span>") + "<br>" +
+    "方位角：" + (geo.rotation_deg || 0) + "° · 安全边界：" +
+    (F.geofenceEnabled ? "开启" : "关闭");
+
+  if (!F.geoReady) {
+    showOverlay("场地尚未做地理标定",
+      "为避免把示例原点 (0,0) 误当成真实位置，<b>未校准时后端不输出任何经纬度</b>，" +
+      "本页也不打点。<br>现场做法：用合规服务商（腾讯位置服务/高德/百度/天地图）采集场地原点的 " +
+      "<b>GCJ-02</b> 经纬度，在 <a href='admin'>管理台 → 场地标定</a> 填写并把 calibrated 置 true。" +
+      "<br>未标定前，日常演示请用 <a href='view'>本地矢量场地（/view）</a>：米制坐标、分区、安全边界、轨迹都完整可用。");
+    setStatus("未标定 · 不输出经纬度", "warn");
+    return;
+  }
+  if (initMap(geo)) {
+    refresh();
+    setInterval(refresh, 2000);
+  }
+});
+</script>
+</body>
+</html>

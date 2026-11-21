@@ -1,0 +1,1363 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>寻检车 · 远程控制台（多车同屏）</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    background: #e8edf4; color: #1f2d3d;
+    min-height: 100vh; padding: 20px 16px 28px;
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  header, main, #logCard, #voiceCard, #authCard, #missionCard { width: min(1180px, 96vw); }
+  header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  header h1 { font-size: 18px; font-weight: 600; }
+  header h1 span { font-weight: 400; font-size: 13px; color: #8896a6; margin-left: 8px; }
+  #right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #backend {
+    font-size: 13px; padding: 5px 8px; border: 1px solid #ccd6e2;
+    border-radius: 6px; width: 250px; color: #1f2d3d; background: #fff;
+  }
+  #backend:focus { outline: none; border-color: #2f7bd9; }
+  #deviceSel {
+    font-size: 13px; padding: 5px 8px; border: 1px solid #ccd6e2;
+    border-radius: 6px; width: 148px; color: #1f2d3d; background: #fff; cursor: pointer;
+  }
+  #deviceSel:focus { outline: none; border-color: #2f7bd9; }
+  #connBadge { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #5a6b7f; }
+  #connDot { width: 10px; height: 10px; border-radius: 50%; background: #b0b9c4; transition: background .2s; }
+  #connDot.on { background: #22a35c; box-shadow: 0 0 6px rgba(34,163,92,.6); }
+  #connDot.warn { background: #d99a2e; box-shadow: 0 0 6px rgba(217,154,46,.6); }
+  #connDot.err { background: #d64545; box-shadow: 0 0 6px rgba(214,69,69,.5); }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 14px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  .card { background: #fff; border-radius: 14px; box-shadow: 0 2px 10px rgba(31,45,61,.08); padding: 16px; }
+  canvas { width: 100%; height: auto; display: block; border-radius: 8px; cursor: pointer; }
+
+  #hud { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .cell { flex: 1 1 90px; text-align: center; background: #f6f9fc; border-radius: 10px; padding: 8px 4px; }
+  .cell .k { font-size: 11px; color: #8896a6; margin-bottom: 3px; }
+  .cell .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cell .v.small { font-size: 13px; }
+  .cell .v.stale { color: #c07a12; }
+
+  /* ---------- 车队概览 ---------- */
+  #fleetHint { font-size: 12px; color: #8896a6; line-height: 1.6; margin: 12px 0 8px; }
+  #fleetBar { display: flex; flex-wrap: wrap; gap: 8px; }
+  .fleetItem {
+    flex: 1 1 165px; min-width: 150px; background: #f6f9fc; border: 1px solid #e3eaf3;
+    border-radius: 10px; padding: 9px 11px; cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .fleetItem:hover { border-color: #a9c5e8; }
+  .fleetItem.active { border-color: #2f7bd9; background: #eef5ff; box-shadow: 0 0 0 2px rgba(47,123,217,.12); }
+  .fleetItem .fn { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .fleetItem .swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .fleetItem .badge { font-size: 10px; font-weight: 400; color: #2f7bd9; margin-left: auto; }
+  .fleetItem .badge.ro { color: #c07a12; }
+
+  /* ---------- M2 身份与授权 ---------- */
+  #authCard { padding: 11px 16px; }
+  #authRow { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  #authRow b { font-size: 13px; font-weight: 600; }
+  #authToken {
+    flex: 1 1 240px; min-width: 170px; font-size: 13px; padding: 6px 9px; font-family: inherit;
+    border: 1px solid #ccd6e2; border-radius: 6px; color: #1f2d3d; background: #fff;
+  }
+  #authToken:focus { outline: none; border-color: #2f7bd9; }
+  .btn.small { font-size: 12px; padding: 6px 12px; border-radius: 7px; }
+  #authBadge { font-size: 12px; color: #5a6b7f; white-space: nowrap; }
+  #authBadge.ok { color: #1c7f4b; }
+  #authBadge.bad { color: #c02b2b; }
+  #authNote { font-size: 11.5px; color: #8896a6; line-height: 1.6; margin-top: 7px; }
+  .fleetItem .fs { font-size: 11.5px; color: #5a6b7f; margin-top: 5px; line-height: 1.65; font-variant-numeric: tabular-nums; }
+  .fleetItem .st-on { color: #1c7f4b; font-weight: 600; }
+  .fleetItem .st-off { color: #c07a12; font-weight: 600; }
+  .fleetItem .st-na { color: #9aa7b5; }
+
+  /* ---------- 控制面板 ---------- */
+  #panel { display: flex; flex-direction: column; gap: 14px; }
+  .sect { font-size: 12px; color: #8896a6; letter-spacing: .5px; margin-bottom: 8px; }
+  #speedRow { display: flex; align-items: center; gap: 10px; }
+  input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 6px; border-radius: 3px; background: #dde5ee; outline: none; }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: #2f7bd9; border: 3px solid #fff; box-shadow: 0 1px 4px rgba(47,123,217,.5); cursor: pointer;
+  }
+  #speedVal { font-size: 20px; font-weight: 600; width: 46px; text-align: right; font-variant-numeric: tabular-nums; }
+
+  #pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .btn {
+    border: none; border-radius: 12px; cursor: pointer; font-family: inherit;
+    background: #f0f4f9; color: #1f2d3d; transition: transform .08s, background .15s, box-shadow .15s;
+    font-size: 15px; font-weight: 500; padding: 14px 8px;
+  }
+  .btn:hover:not(:disabled) { background: #e4ecf6; }
+  .btn:active:not(:disabled) { transform: scale(.97); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.dir { font-size: 22px; line-height: 1; }
+  .btn.stop { background: #fdecec; color: #c02b2b; font-weight: 600; }
+  .btn.stop:hover:not(:disabled) { background: #fbdada; }
+  .btn.big { padding: 16px; font-size: 16px; }
+  .key { font-size: 10px; color: #9aa7b5; display: block; margin-top: 2px; font-weight: 400; }
+
+  #cmdState { font-size: 12px; color: #5a6b7f; min-height: 18px; line-height: 1.5; word-break: break-word; overflow-wrap: anywhere; }
+  #cmdState.ok { color: #1c7f4b; }
+  #cmdState.bad { color: #c02b2b; }
+
+  /* ---------- 日志 ---------- */
+  #logCard { padding: 0; overflow: hidden; }
+  #logHead {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px; border-bottom: 1px solid #eef2f7;
+  }
+  #logHead b { font-size: 14px; font-weight: 600; }
+  #logHead span { font-size: 12px; color: #9aa7b5; }
+  #clearBtn { border: none; background: none; color: #2f7bd9; font-size: 12px; cursor: pointer; font-family: inherit; }
+  #logList { max-height: 240px; overflow-y: auto; font-size: 12.5px; }
+  .row { display: grid; grid-template-columns: 74px 1fr 62px; gap: 10px; padding: 8px 16px; border-bottom: 1px solid #f4f7fa; align-items: baseline; }
+  .row:last-child { border-bottom: none; }
+  .row .t { color: #9aa7b5; font-variant-numeric: tabular-nums; }
+  .row .m { color: #33475b; word-break: break-all; }
+  .row .m b { font-weight: 600; }
+  .row .ms { text-align: right; color: #9aa7b5; font-variant-numeric: tabular-nums; }
+  .row.ok .m b { color: #1c7f4b; }
+  .row.bad .m b { color: #c02b2b; }
+  .row.bad .m { color: #a33; }
+  .empty { padding: 18px 16px; color: #9aa7b5; font-size: 12.5px; }
+  /* ---------- AI 语音指令 ---------- */
+  #voiceCard { padding: 16px; }
+  .voiceHead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .voiceHead b { font-size: 14px; font-weight: 600; }
+  .voiceHead span { font-size: 12px; color: #8896a6; }
+  #voiceRow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  #textCmd {
+    flex: 1 1 260px; min-width: 180px; padding: 10px 12px; font-size: 14px; font-family: inherit;
+    border: 1px solid #ccd6e2; border-radius: 8px; color: #1f2d3d; background: #fff;
+  }
+  #textCmd:focus { outline: none; border-color: #2f7bd9; }
+  .btn.mic { background: #2f7bd9; color: #fff; padding: 11px 16px; white-space: nowrap; }
+  .btn.mic:hover:not(:disabled) { background: #2469bf; }
+  .btn.mic.rec { background: #c02b2b; }
+  .btn.go { background: #1c7f4b; color: #fff; margin-top: 10px; padding: 10px 18px; }
+  .chk { font-size: 12px; color: #5a6b7f; display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+  #voiceStatus { margin-top: 10px; font-size: 12px; color: #5a6b7f; line-height: 1.6; }
+  #voiceStatus.ok { color: #1c7f4b; }
+  #voiceStatus.bad { color: #c02b2b; }
+  #voiceResult { margin-top: 12px; border-top: 1px solid #eef2f7; padding-top: 12px; }
+  .vrLine { display: flex; gap: 10px; align-items: baseline; font-size: 13px; padding: 3px 0; }
+  .vrK { width: 88px; flex: none; color: #8896a6; font-size: 12px; }
+  .vrLine code { font-size: 12px; background: #f6f9fc; padding: 2px 6px; border-radius: 4px; word-break: break-all; }
+
+  /* ---------- M3 场地坐标 / 任务编排 / M4 导航 ---------- */
+  #nav { width: min(1180px, 96vw); font-size: 12px; color: #5a6b7f; text-align: right; }
+  #nav a { color: #2f7bd9; text-decoration: none; margin-left: 12px; }
+  #nav a:hover { text-decoration: underline; }
+  #fieldNote { font-size: 11.5px; color: #8896a6; line-height: 1.6; margin-top: 10px; }
+  #fieldNote b { color: #5a6b7f; font-weight: 600; }
+  #missionCard { padding: 16px; }
+  .missionHead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+  .missionHead b { font-size: 14px; font-weight: 600; }
+  .missionHead span { font-size: 12px; color: #8896a6; }
+  #missionRow { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; }
+  #missionSel {
+    flex: 0 1 210px; min-width: 160px; font-size: 13px; padding: 7px 9px;
+    border: 1px solid #ccd6e2; border-radius: 7px; background: #fff; color: #1f2d3d;
+  }
+  #missionStatus { font-size: 12px; color: #5a6b7f; line-height: 1.6; margin-top: 9px; word-break: break-word; }
+  #missionStatus.ok { color: #1c7f4b; } #missionStatus.bad { color: #c02b2b; }
+  #missionList { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .mItem { background: #f6f9fc; border: 1px solid #e3eaf3; border-radius: 9px; padding: 9px 11px; font-size: 12px; }
+  .mItem .mt { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .mItem .mt b { font-size: 12.5px; }
+  .mItem .mt .state { margin-left: auto; font-weight: 600; }
+  .mItem .state.running { color: #2f7bd9; } .mItem .state.succeeded { color: #1c7f4b; }
+  .mItem .state.failed { color: #c02b2b; } .mItem .state.cancelled { color: #c07a12; }
+  .mItem .mp { height: 5px; background: #e3eaf3; border-radius: 3px; margin-top: 7px; overflow: hidden; }
+  .mItem .mp i { display: block; height: 100%; background: #2f7bd9; }
+  .mItem .md { color: #5a6b7f; margin-top: 6px; line-height: 1.55; }
+  #foot { font-size: 12px; color: #9aa7b5; text-align: center; line-height: 1.8; width: min(1180px, 96vw); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🎮 寻检车 · 远程控制台<span>APP → 业务后端 → 华为云 IoTDA → 小车 · 多车同屏</span></h1>
+  <div id="right">
+    <select id="deviceSel" title="当前控制的车辆：画面上所有车同时显示，但按钮与语音指令只作用于这一台"><option value="">默认车</option></select>
+    <input id="backend" spellcheck="false" title="业务后端地址（本机 127.0.0.1 / 局域网 IP）">
+    <div id="connBadge"><span id="connDot"></span><span id="connText">连接中…</span></div>
+  </div>
+</header>
+
+<div id="nav">
+  M3 场地坐标映射 · M4 B/S 管理台已就绪
+  <a href="view" title="只读俯视图（多车）">只读俯视图</a>
+  <a href="map" title="合规地理底图（腾讯位置服务代理模式）">合规底图</a>
+  <a href="admin" title="管理台：账号、绑定关系、严格模式、审计">管理台</a>
+</div>
+
+<div class="card" id="authCard">
+  <div id="authRow">
+    <b>🔑 身份与授权</b>
+    <input id="authToken" type="password" spellcheck="false" autocomplete="off"
+           placeholder="粘贴身份令牌（留空＝访客）">
+    <button class="btn small" id="authApply" type="button">应用</button>
+    <button class="btn small" id="authClear" type="button">退出 / 访客</button>
+    <span id="authBadge">检测中…</span>
+  </div>
+  <div id="authNote">
+    M2 绑定授权：每台车能被谁控制由服务端 <b>access.json</b> 逐次裁决，前端隐藏按钮不算授权。
+    不登录也能看见全部车（多车同屏不退化），但没有绑定的车下发会返回 <b>403 越权拒绝</b> 并写入审计日志。
+  </div>
+</div>
+
+<main>
+  <div class="card">
+    <canvas id="field" width="800" height="600" title="点击画面中的小车可切换当前控制对象"></canvas>
+    <div id="hud">
+      <div class="cell"><div class="k">坐标 X</div><div class="v" id="hx">--</div></div>
+      <div class="cell"><div class="k">坐标 Y</div><div class="v" id="hy">--</div></div>
+      <div class="cell"><div class="k">朝向</div><div class="v" id="hh">--</div></div>
+      <div class="cell"><div class="k">速度</div><div class="v" id="hs">--</div></div>
+      <div class="cell"><div class="k">电量</div><div class="v" id="hb">--</div></div>
+      <div class="cell"><div class="k">影子上报</div><div class="v small" id="hage">--</div></div>
+      <div class="cell"><div class="k">场地坐标（m / 区域）</div><div class="v small" id="hpos">--</div></div>
+    </div>
+    <div id="fleetHint">上方 HUD 显示「当前控制」车辆；画面里所有登记车辆同时刷新。点击画面中的车、下方卡片或右上角下拉可切换控制对象，<b>一次命令只作用于一台车</b>。</div>
+    <div id="fleetBar"></div>
+    <div id="fieldNote">场地底图：<b>加载中…</b></div>
+  </div>
+
+  <div class="card" id="panel">
+    <div>
+      <div class="sect">速度（仅前进 / 后退生效）</div>
+      <div id="speedRow">
+        <input type="range" id="speed" min="0" max="100" step="5" value="60">
+        <div id="speedVal">60</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="sect">方向控制</div>
+      <div id="pad">
+        <div></div>
+        <button class="btn dir" data-cmd="FORWARD" title="前进 (W / ↑)">↑<span class="key">W</span></button>
+        <div></div>
+        <button class="btn dir" data-cmd="LEFT" title="左转 (A / ←)">←<span class="key">A</span></button>
+        <button class="btn stop" data-cmd="STOP" title="停车 (空格)">停<span class="key">Space</span></button>
+        <button class="btn dir" data-cmd="RIGHT" title="右转 (D / →)">→<span class="key">D</span></button>
+        <div></div>
+        <button class="btn dir" data-cmd="BACK" title="后退 (S / ↓)">↓<span class="key">S</span></button>
+        <div></div>
+      </div>
+    </div>
+
+    <button class="btn stop big" data-cmd="STOP" id="stopBig">■ 紧急停车</button>
+    <div id="cmdState">就绪</div>
+  </div>
+</main>
+
+<div class="card" id="voiceCard">
+  <div class="voiceHead">
+    <b>AI 自然语言控车</b>
+    <span>语音采集 → ASR 转文字 → DeepSeek 解析 → 规则裁决 → 下发（默认只解析，需人工确认）· 作用于当前控制车辆</span>
+  </div>
+  <div id="voiceRow">
+    <button class="btn mic" id="micBtn" type="button">按住说话</button>
+    <input id="textCmd" type="text" spellcheck="false" autocomplete="off"
+           placeholder="或直接输入一句话，例如：往前开慢一点">
+    <button class="btn" id="parseBtn" type="button">解析</button>
+    <label class="chk"><input type="checkbox" id="autoExec"> 解析后自动执行</label>
+  </div>
+  <div id="voiceStatus">正在检测麦克风…</div>
+  <div id="voiceResult" style="display:none">
+    <div class="vrLine"><span class="vrK">识别文本</span><span id="vrText"></span></div>
+    <div class="vrLine"><span class="vrK">大模型输出</span><code id="vrParsed"></code></div>
+    <div class="vrLine"><span class="vrK">裁决结果</span><span id="vrCmd"></span></div>
+    <div class="vrLine"><span class="vrK">耗时</span><span id="vrTime"></span></div>
+    <button class="btn go" id="execBtn" type="button" style="display:none">执行该指令</button>
+  </div>
+</div>
+
+<div class="card" id="missionCard">
+  <div class="missionHead">
+    <b>🧭 任务级指令编排（M3）</b>
+    <span>预设/自定义步骤 → 逐步白名单校验 → 逐步授权复检 → 逐步等车端回执 → 记录场地轨迹 → 收尾停车</span>
+  </div>
+  <div id="missionRow">
+    <select id="missionSel" title="预设任务：走方框 / 直线往返 / 通道巡检 / 原地自检"><option value="">读取预设中…</option></select>
+    <button class="btn small" id="missionStart" type="button">启动任务</button>
+    <button class="btn small" id="missionCancel" type="button">取消并急停</button>
+    <button class="btn small stop" id="missionAbort" type="button">一键全停（管理员）</button>
+    <span style="font-size:12px;color:#8896a6" id="missionTarget">作用于当前控制车辆</span>
+  </div>
+  <div id="missionStatus">任务只认五条规范指令，不接受自然语言；同一台车同时只允许一个任务。</div>
+  <div id="missionList"></div>
+</div>
+
+<div class="card" id="logCard">
+  <div id="logHead">
+    <b>指令记录</b>
+    <span>executed=true 才表示车端已回执；语音「仅解析」不等于已下发</span>
+    <button id="clearBtn">清空</button>
+  </div>
+  <div id="logList"><div class="empty">还没有发过命令。点上面的方向键，或用键盘 W A S D / 方向键，空格停车。</div></div>
+</div>
+
+<div id="foot">
+  数据源：设备影子（运动时 5 秒一报，静止 60 秒一报）· 状态每 2 秒批量刷新一次（GET /fleet_status）· 画面中实心车为本地航位推算，细圈是最近一次影子上报位置 · 离线车半透明显示，影子是历史值、不可下发
+</div>
+
+<script src="field.js"></script>
+<script>
+"use strict";
+
+var POLL_MS = 2000;
+var FIELD_W = 800, FIELD_H = 600;
+var TRAIL_MAX = 120, TRAIL_TICK_MS = 250;
+var VEL = 0.2;                  // 与车端一致：每秒位移 = speed * 0.2 px
+// 每台车一个专属色：多车同屏时不靠"当前选中"来区分身份
+var PALETTE = [
+  { hex: "#2f7bd9", rgb: [47, 123, 217] },
+  { hex: "#e07a2f", rgb: [224, 122, 47] },
+  { hex: "#1c9b6c", rgb: [28, 155, 108] },
+  { hex: "#8b5cc7", rgb: [139, 92, 199] },
+  { hex: "#c74b7a", rgb: [199, 75, 122] },
+  { hex: "#1596a8", rgb: [21, 150, 168] }
+];
+
+var $ = function (id) { return document.getElementById(id); };
+var backendInput = $("backend");
+var canvas = $("field"), ctx = canvas.getContext("2d");
+
+// 每辆车持有自己的影子、航位推算、轨迹、在线状态，互不覆盖
+var fleet = [];
+var fleetMode = "single";       // single = 旧后端无 /devices，退回原来的单车界面
+var batchMode = true;           // 用 /fleet_status；旧后端 404 时自动退回逐台 /status
+var currentDeviceId = "", currentDeviceName = "默认车";
+var lastTrailAt = 0, backendOk = null, busy = false;
+
+// 默认地址：后端同源打开时用相对路径；file:// 双击打开时回落到本机 8000
+(function () {
+  if (location.protocol === "http:" || location.protocol === "https:") backendInput.value = location.origin;
+  else backendInput.value = "http://127.0.0.1:8000";
+})();
+
+function baseUrl() {
+  return backendInput.value.trim().replace(/\/+$/, "");
+}
+function api(path) { return (baseUrl() || "") + path; }
+
+// ---------------------------------------------------------------- M2 身份
+// token 只存在浏览器 localStorage，绝不写进页面源码；旧后端会忽略这个头，照样能用。
+var AUTH_KEY = "carAuthToken";
+var actor = null;               // /devices 返回的身份摘要：name / role / can_control / visible
+var authBlocked = false;        // 401/403：不要把鉴权失败误显示成「后端不通」
+
+function authToken() {
+  try { return localStorage.getItem(AUTH_KEY) || ""; } catch (e) { return ""; }
+}
+function apiFetch(url, opts) {
+  opts = opts || {};
+  var t = authToken();
+  if (t) {
+    var h = Object.assign({}, opts.headers || {});
+    h["X-Auth-Token"] = t;
+    opts.headers = h;
+  }
+  return fetch(url, opts).then(function (r) {
+    if (r.status === 401 || r.status === 403) {
+      authBlocked = true;
+      r.clone().json().then(function (j) {
+        setAuthBadge("✗ " + (j.error || "身份校验未通过"), "bad");
+      }).catch(function () {});
+    } else {
+      authBlocked = false;
+    }
+    return r;
+  });
+}
+function setAuthBadge(text, kind) {
+  var el = $("authBadge");
+  el.className = kind || "";
+  el.textContent = text;
+}
+function actorText() {
+  if (!actor) return "访客（旧后端无鉴权）";
+  return actor.name + " · 可控制 " + actor.can_control.length + " 台";
+}
+function canControl(id) {
+  if (!actor) return true;                 // 旧后端：没有授权概念，保持原行为
+  return actor.can_control.indexOf(id) >= 0;
+}
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// ---------------------------------------------------------------- 多车台账与状态容器
+var deviceSel = $("deviceSel");
+
+function makeCarState(d, idx) {
+  var p = PALETTE[idx % PALETTE.length];
+  return {
+    id: d.device_id || "",
+    name: d.name || d.device_id || "默认车",
+    kind: d.kind || "simulator",
+    group: d.group || "",
+    isDefault: !!d.default,
+    canControl: d.can_control !== false,   // M2：服务端告知当前身份能否控制这台车
+    color: p.hex, rgb: p.rgb,
+    shadow: null, car: null, shadowMarker: null, trail: [],
+    online: null, err: ""
+  };
+}
+
+function currentDevice() { return currentDeviceId; }   // "" = 不传 device_id，后端回落默认车
+
+function isSelected(s) {
+  return fleetMode === "single" ? true : s.id === currentDeviceId;
+}
+function currentState() {
+  for (var i = 0; i < fleet.length; i++) if (isSelected(fleet[i])) return fleet[i];
+  return fleet[0] || null;
+}
+
+// 切换控制对象：只换"当前车"，绝不清空其它车的状态（同屏就是要一直画着）
+function applyDevice() {
+  if (fleetMode === "single") {
+    currentDeviceId = "";
+    currentDeviceName = "默认车";
+  } else {
+    currentDeviceId = deviceSel.value || "";
+    var opt = deviceSel.options[deviceSel.selectedIndex];
+    currentDeviceName = opt ? opt.textContent.replace("（默认）", "") : "默认车";
+  }
+  try { localStorage.setItem("carDeviceId", currentDeviceId); } catch (e) {}
+  var st0 = currentState();
+  var locked = !!(st0 && !st0.canControl);
+  $("cmdState").className = locked ? "bad" : "";
+  $("cmdState").textContent = "当前控制：" + (currentDeviceName || "默认车") + "（命令只下发到这一台）" +
+    (locked ? " · ⚠ 当前身份对该车无控制权，下发会被服务端拒绝（403），请切换身份令牌。" : "");
+  updateHud();
+  renderFleetBar();
+  setConn();
+}
+
+function selectDevice(id) {
+  if (!id || id === currentDeviceId || fleetMode === "single") return;
+  deviceSel.value = id;
+  applyDevice();
+}
+
+function loadDevices() {
+  apiFetch(api("/devices"), { cache: "no-store" })
+    .then(function (r) { if (!r.ok) throw new Error("no registry"); return r.json(); })
+    .then(function (j) {
+      if (authBlocked) throw new Error("AUTH");
+      if (!j.ok || !j.devices || !j.devices.length) throw new Error("empty registry");
+      actor = j.actor || null;                 // M2：服务端告知"我是谁、能控哪几台"
+      setAuthBadge("✓ " + actorText(), "ok");
+      var saved = "";
+      try { saved = localStorage.getItem("carDeviceId") || ""; } catch (e) {}
+      var enabled = j.devices.filter(function (d) { return d.enabled; });
+      if (!enabled.length) throw new Error("no enabled device");
+
+      deviceSel.innerHTML = "";
+      enabled.forEach(function (d) {
+        var opt = document.createElement("option");
+        opt.value = d.device_id;
+        opt.textContent = d.name + (d.default ? "（默认）" : "");
+        deviceSel.appendChild(opt);
+      });
+      fleet = enabled.map(makeCarState);
+      fleetMode = "fleet";
+      var valid = fleet.some(function (s) { return s.id === saved; });
+      deviceSel.value = valid ? saved : (j.default || fleet[0].id);
+      applyDevice();
+      poll();
+    })
+    .catch(function () {
+      if (authBlocked) return;                 // 身份被拒：保留画面，等用户换令牌，别误显示成"后端不通"
+      // 旧后端没有 /devices（404）时静默退回单车模式，界面与以前完全一致
+      actor = null;
+      setAuthBadge("旧后端（未启用鉴权）", "");
+      deviceSel.style.display = "none";
+      fleetMode = "single";
+      fleet = [makeCarState({ device_id: "", name: "默认车" }, 0)];
+      applyDevice();
+      poll();
+    });
+}
+
+deviceSel.addEventListener("change", applyDevice);
+canvas.addEventListener("click", function (e) {
+  var rect = canvas.getBoundingClientRect();
+  var x = (e.clientX - rect.left) * (FIELD_W / rect.width);
+  var y = (e.clientY - rect.top) * (FIELD_H / rect.height);
+  var best = null, bestDist = 46;
+  fleet.forEach(function (s) {
+    if (!s.car) return;
+    var d = Math.sqrt(Math.pow(s.car.x - x, 2) + Math.pow(s.car.y - y, 2));
+    if (d < bestDist) { bestDist = d; best = s; }
+  });
+  if (best) selectDevice(best.id);
+});
+
+// ---------------------------------------------------------------- 通用小工具
+// 设备影子的 event_time 形如 20261108T041248Z（UTC），用它算真实的"上报距今"
+function parseShadowTime(s) {
+  if (!s) return null;
+  var m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})Z$/.exec(s);
+  if (m) return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]);
+  var d = Date.parse(s);
+  return isNaN(d) ? null : d;
+}
+function fmtAge(sec) {
+  if (sec < 60) return sec + " 秒前";
+  if (sec < 3600) return Math.floor(sec / 60) + " 分钟前";
+  if (sec < 86400) return Math.floor(sec / 3600) + " 小时前";
+  return Math.floor(sec / 86400) + " 天前";
+}
+function ageText(reportedAt) {
+  if (reportedAt === null || reportedAt === undefined) return { text: "未知", stale: true };
+  var age = Math.max(0, Math.round((Date.now() - reportedAt) / 1000));
+  return { text: fmtAge(age), stale: age > 15 };
+}
+// 把华为云的英文异常翻成课堂上能一眼看懂的中文（原始异常仍保留在日志与 title 里）
+function friendlyError(why) {
+  if (/IOTDA\.014016|not online/i.test(why || ""))
+    return "设备不在线，华为云拒绝下发（IOTDA.014016）——请启动/重启所选车辆的 car_mqtt_client_00X.py";
+  return why;
+}
+
+// ---------------------------------------------------------------- 状态轮询（批量优先）
+function poll() {
+  if (fleetMode === "single") return pollSingle();
+  if (batchMode) return pollBatch();
+  return pollEach();
+}
+
+function pollSingle() {
+  apiFetch(api("/status"), { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (st) { ingest([Object.assign({ device_id: "" }, st)]); })
+    .catch(failAll);
+}
+
+function pollBatch() {
+  apiFetch(api("/fleet_status"), { cache: "no-store" })
+    .then(function (r) {
+      if (r.status === 404) { batchMode = false; pollEach(); return null; }
+      return r.json();
+    })
+    .then(function (j) {
+      if (!j) return;
+      if (!j.ok || !j.devices) throw new Error(j.error || "批量状态返回异常");
+      ingest(j.devices);
+    })
+    .catch(failAll);
+}
+
+// 兼容只有 M1 接口（/devices 有、/fleet_status 还没有）的后端：逐台并发查 /status
+function pollEach() {
+  var reqs = fleet.map(function (s) {
+    var qs = s.id ? "?device_id=" + encodeURIComponent(s.id) : "";
+    return apiFetch(api("/status" + qs), { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (st) { return Object.assign({ device_id: s.id }, st); })
+      .catch(function (e) { return { device_id: s.id, ok: false, error: e.message }; });
+  });
+  Promise.all(reqs).then(ingest);
+}
+
+// 把 /fleet_status 或 /status 的结果写进各自的状态容器
+function ingest(states) {
+  var receivedAt = performance.now();
+  var byId = {};
+  states.forEach(function (st) { byId[st.device_id || ""] = st; });
+  backendOk = true;
+  fleet.forEach(function (s) {
+    var st = byId[s.id];
+    if (st && st.can_control !== undefined) s.canControl = !!st.can_control;   // /fleet_status 也会带权限
+    if (!st || !st.ok || st.x === null || st.x === undefined) {
+      s.online = false;
+      s.err = (st && st.error) || "暂无状态";
+      return;                       // 保留上一帧位置：一台车查询失败不该让其它车消失
+    }
+    s.err = "";
+    s.online = !!st.online;
+    s.shadow = { x: st.x, y: st.y, heading: st.heading, speed: st.speed,
+                 battery: st.battery, at: receivedAt,
+                 reportedAt: parseShadowTime(st.time) };
+    if (!s.car) s.car = { x: st.x, y: st.y, heading: st.heading, speed: st.speed, battery: st.battery };
+    else { s.car.heading = st.heading; s.car.speed = st.speed; s.car.battery = st.battery; }
+    s.shadowMarker = { x: st.x, y: st.y };
+  });
+  setConn();
+  updateHud();
+  renderFleetBar();
+}
+
+function failAll() {
+  if (authBlocked) return;                   // 401/403 不是"后端不通"，别覆盖状态
+  backendOk = false;
+  fleet.forEach(function (s) { s.online = null; s.err = "后端不通"; });
+  setConn();
+  renderFleetBar();
+}
+
+function setConn() {
+  var dot = $("connDot"), text = $("connText");
+  if (authBlocked) { dot.className = "err"; text.textContent = "身份校验未通过（401 / 403）"; return; }
+  if (backendOk === false) { dot.className = "err"; text.textContent = "后端不通"; return; }
+  if (fleetMode === "single") {
+    var s = currentState();
+    var on = s && s.online;
+    if (on === true) { dot.className = "on"; text.textContent = "车在线"; }
+    else if (on === false) { dot.className = "warn"; text.textContent = "车离线（影子是历史值，不可下发）"; }
+    else { dot.className = ""; text.textContent = "连接中…"; }
+    return;
+  }
+  var onlineCount = fleet.filter(function (x) { return x.online === true; }).length;
+  dot.className = onlineCount === fleet.length ? "on" : "warn";
+  text.textContent = onlineCount + "/" + fleet.length + " 台在线 · " +
+                     (actor ? actor.name + " · " : "") + "当前控制：" +
+                     (currentDeviceName || "默认车") +
+                     (onlineCount === 0 ? "（均不可下发）" : "");
+}
+
+function updateHud() {
+  var s = currentState(), sh = s && s.shadow;
+  $("hx").textContent = sh && sh.x !== null ? sh.x : "--";
+  $("hy").textContent = sh && sh.y !== null ? sh.y : "--";
+  $("hh").textContent = sh && sh.heading !== null ? sh.heading + "°" : "--";
+  $("hs").textContent = sh && sh.speed !== null && sh.speed !== undefined ? sh.speed : "--";
+  $("hb").textContent = sh && sh.battery !== null && sh.battery !== undefined ? sh.battery + "%" : "--";
+  var ageEl = $("hage");
+  var a = sh ? ageText(sh.reportedAt) : { text: "--", stale: false };
+  ageEl.textContent = a.text;
+  ageEl.className = "v small" + (a.stale ? " stale" : "");
+  // M3：同一份影子坐标，展示成有物理含义的场地米制坐标 / 区域 / 越界告警
+  var posEl = $("hpos");
+  if (window.FieldMap && FieldMap.ready && sh && sh.x !== null && sh.x !== undefined) {
+    posEl.textContent = FieldMap.describe(sh.x, sh.y);
+    posEl.className = "v small" + (FieldMap.inside(sh.x, sh.y) ? "" : " stale");
+  } else {
+    posEl.textContent = "--";
+    posEl.className = "v small";
+  }
+}
+
+// 车队概览：每台车一张小卡，点一下即切换控制对象
+function renderFleetBar() {
+  var bar = $("fleetBar");
+  if (fleetMode === "single") { bar.style.display = "none"; return; }
+  bar.style.display = "flex";
+  var html = "";
+  fleet.forEach(function (s) {
+    var sel = isSelected(s);
+    var stCls = s.online === true ? "st-on" : (s.online === false ? "st-off" : "st-na");
+    var stTxt = s.online === true ? "在线" : (s.online === false ? "离线" : "连接中");
+    var pos = s.shadow && s.shadow.x !== null && s.shadow.x !== undefined
+      ? Math.round(s.shadow.x) + ", " + Math.round(s.shadow.y) : "--";
+    var spd = s.shadow && s.shadow.speed !== null && s.shadow.speed !== undefined ? s.shadow.speed : "--";
+    var bat = s.shadow && s.shadow.battery !== null && s.shadow.battery !== undefined ? s.shadow.battery + "%" : "--";
+    var age = s.shadow ? ageText(s.shadow.reportedAt).text : "--";
+    var extra = s.err ? '<span style="color:#c02b2b"> · ' + esc(s.err) + "</span>" : "";
+    var fpos = (window.FieldMap && FieldMap.ready && s.shadow && s.shadow.x !== null && s.shadow.x !== undefined)
+      ? FieldMap.describe(s.shadow.x, s.shadow.y) : "";
+    var roleBadge = !s.canControl
+      ? '<span class="badge ro">只读 · 无控制权</span>'
+      : (sel ? '<span class="badge">当前控制</span>' : "");
+    html += '<div class="fleetItem' + (sel ? " active" : "") + '" data-id="' + esc(s.id) + '">' +
+              '<div class="fn"><span class="swatch" style="background:' + s.color + '"></span>' +
+                esc(s.name) + roleBadge + "</div>" +
+              '<div class="fs"><span class="' + stCls + '">' + stTxt + "</span> · 坐标 " + pos +
+                " · 速度 " + spd + " · 电量 " + bat +
+                (fpos ? "<br>场地 " + esc(fpos) : "") +
+                "<br>影子 " + age + extra + "</div>" +
+            "</div>";
+  });
+  bar.innerHTML = html;
+  $("missionTarget").textContent = "作用于当前控制车辆：" + (currentDeviceName || "默认车");
+  Array.prototype.forEach.call(bar.querySelectorAll(".fleetItem"), function (el) {
+    el.addEventListener("click", function () { selectDevice(el.dataset.id); });
+  });
+}
+
+// ---------------------------------------------------------------- 下发命令
+function send(cmd, overrideSpeed) {
+  if (busy) return;
+  var speed = overrideSpeed !== undefined ? overrideSpeed : parseInt($("speed").value, 10);
+  var body = { cmd: cmd };
+  if (currentDevice()) body.device_id = currentDevice();   // 选中哪台就下发到哪台，绝不广播
+  if (cmd === "FORWARD" || cmd === "BACK") body.speed = speed;
+
+  busy = true;
+  setEnabled(false);
+  $("cmdState").className = "";
+  $("cmdState").title = "";
+  $("cmdState").textContent = "下发 " + cmd + (body.speed !== undefined ? " · 速度 " + speed : "") +
+                             " → " + (currentDeviceName || "默认车") + " …";
+
+  var t0 = performance.now();
+  apiFetch(api("/command"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  })
+    .then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
+    .then(function (res) {
+      var ms = Math.round(performance.now() - t0);
+      var j = res.json;
+      var ok = res.status === 200 && j.ok === true && j.executed === true;
+      if (ok) {
+        $("cmdState").className = "ok";
+        $("cmdState").textContent = "✓ " + cmd + " 已执行（" + (currentDeviceName || "默认车") +
+                                    "回执 " + j.response_name + "，" + ms + " ms）";
+        addLog("ok", cmd, body.speed, j, ms);
+        poll();
+      } else {
+        var why = j.error || (!j.ok ? "返回 ok=false" : "命令已送达但车端未回执（executed=false）");
+        $("cmdState").className = "bad";
+        $("cmdState").textContent = "✗ " + cmd + " 失败：" + friendlyError(why);
+        $("cmdState").title = why;          // 原始异常留给排错
+        addLog("bad", cmd, body.speed, j, ms, why);
+      }
+    })
+    .catch(function (e) {
+      var ms = Math.round(performance.now() - t0);
+      $("cmdState").className = "bad";
+      $("cmdState").textContent = "✗ 请求没发出去：" + e.message + "（后端未启动？地址不对？）";
+      addLog("bad", cmd, body.speed, null, ms, e.message);
+      backendOk = false; setConn();
+    })
+    .then(function () { busy = false; setEnabled(true); });
+}
+
+function addLog(kind, cmd, speed, j, ms, why, customMsg) {
+  var list = $("logList");
+  var empty = list.querySelector(".empty");
+  if (empty) list.removeChild(empty);
+
+  var now = new Date();
+  var hhmmss = [now.getHours(), now.getMinutes(), now.getSeconds()]
+    .map(function (n) { return (n < 10 ? "0" : "") + n; }).join(":");
+
+  var msg;
+  if (customMsg !== undefined) {
+    msg = customMsg;                       // 语音链路按真实下发结果写日志
+  } else if (kind === "ok") {
+    msg = "<b>" + cmd + "</b>" + (speed !== undefined ? " " + speed : "") +
+          " · executed=true · id " + String(j.command_id || "").slice(0, 8) + "…";
+  } else {
+    msg = "<b>" + cmd + "</b>" + (speed !== undefined ? " " + speed : "") + " · " + (why || "失败");
+  }
+
+  var tagHtml = currentDeviceName
+    ? '<span style="color:#8896a6">[' + esc(currentDeviceName) + "]</span> " : "";
+  var row = document.createElement("div");
+  row.className = "row " + kind;
+  row.innerHTML = '<div class="t">' + hhmmss + '</div><div class="m">' + tagHtml + msg +
+                  '</div><div class="ms">' + ms + ' ms</div>';
+  list.insertBefore(row, list.firstChild);
+  while (list.children.length > 60) list.removeChild(list.lastChild);
+}
+
+function setEnabled(on) {
+  var btns = document.querySelectorAll("[data-cmd]");
+  for (var i = 0; i < btns.length; i++) btns[i].disabled = !on;
+}
+
+$("speed").addEventListener("input", function () { $("speedVal").textContent = this.value; });
+$("clearBtn").addEventListener("click", function () {
+  $("logList").innerHTML = '<div class="empty">已清空。</div>';
+});
+backendInput.addEventListener("change", poll);
+Array.prototype.forEach.call(document.querySelectorAll("[data-cmd]"), function (b) {
+  b.addEventListener("click", function () { send(this.dataset.cmd); });
+});
+
+// 键盘：WASD / 方向键 / 空格停车；避免在输入框里误触发
+document.addEventListener("keydown", function (e) {
+  if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+  var map = { w: "FORWARD", ArrowUp: "FORWARD", s: "BACK", ArrowDown: "BACK",
+              a: "LEFT", ArrowLeft: "LEFT", d: "RIGHT", ArrowRight: "RIGHT",
+              " ": "STOP", Escape: "STOP" };
+  var k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  var cmd = map[k];
+  if (!cmd) return;
+  e.preventDefault();
+  if (e.repeat) return;          // 长按不连发，避免刷爆接口
+  send(cmd);
+});
+
+// ---------------------------------------------------------------- 渲染（多车同屏）
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function step(now) {
+  var pushTrail = (now - lastTrailAt) > TRAIL_TICK_MS;
+  fleet.forEach(function (s) {
+    if (!s.car || !s.shadow) return;
+    var dt = (now - s.shadow.at) / 1000;
+    if (s.car.speed !== 0 && s.online !== false) {
+      var rad = s.car.heading * Math.PI / 180;
+      s.car.x = Math.min(Math.max(s.shadow.x + s.car.speed * VEL * dt * Math.sin(rad), 14), FIELD_W - 14);
+      s.car.y = Math.min(Math.max(s.shadow.y - s.car.speed * VEL * dt * Math.cos(rad), 14), FIELD_H - 14);
+    } else {
+      s.car.x = s.shadow.x; s.car.y = s.shadow.y;
+    }
+    if (pushTrail) {
+      s.trail.push({ x: s.car.x, y: s.car.y });
+      if (s.trail.length > TRAIL_MAX) s.trail.shift();
+    }
+  });
+  if (pushTrail) lastTrailAt = now;
+}
+
+function drawGrid() {
+  // M3：优先画 /field 的合规本地矢量底图（米制网格、分区、安全边界、巡检点、比例尺）；
+  // 旧后端没有 /field 时 FieldMap.ready=false，自动退回原来的 50px 网格，控车不受影响。
+  if (window.FieldMap && FieldMap.ready && FieldMap.drawBase(ctx, FIELD_W, FIELD_H)) return;
+  ctx.fillStyle = "#f3f7fb";
+  ctx.fillRect(0, 0, FIELD_W, FIELD_H);
+  ctx.strokeStyle = "#dfe7f0";
+  ctx.lineWidth = 1;
+  for (var gx = 0; gx <= FIELD_W; gx += 50) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, FIELD_H); ctx.stroke(); }
+  for (var gy = 0; gy <= FIELD_H; gy += 50) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(FIELD_W, gy); ctx.stroke(); }
+  ctx.strokeStyle = "#c9d5e2";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, FIELD_W - 2, FIELD_H - 2);
+  ctx.fillStyle = "#b9c5d3";
+  ctx.font = "12px sans-serif";
+  ctx.textAlign = "start";
+  ctx.fillText("N ↑  (0,0) 左上角 · 场地 800 × 600 · 全部登记车辆同屏显示", 10, 18);
+}
+
+function drawTrail(s) {
+  if (s.trail.length < 2) return;
+  var c = s.rgb;
+  ctx.lineWidth = 2;
+  for (var i = 1; i < s.trail.length; i++) {
+    var alpha = (i / s.trail.length * 0.5).toFixed(3);
+    ctx.strokeStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + alpha + ")";
+    ctx.beginPath();
+    ctx.moveTo(s.trail[i - 1].x, s.trail[i - 1].y);
+    ctx.lineTo(s.trail[i].x, s.trail[i].y);
+    ctx.stroke();
+  }
+}
+
+function drawShadowMarker(s) {
+  if (!s.shadowMarker) return;
+  var c = s.rgb;
+  ctx.strokeStyle = "rgba(255,255,255,.95)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(s.shadowMarker.x, s.shadowMarker.y, 24, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = "rgba(" + c[0] + "," + c[1] + "," + c[2] + ",.45)";
+  ctx.beginPath(); ctx.arc(s.shadowMarker.x, s.shadowMarker.y, 27, 0, Math.PI * 2); ctx.stroke();
+}
+
+function drawCar(s, selected) {
+  var c = s.car;
+  ctx.save();
+  ctx.globalAlpha = s.online === false ? 0.5 : 1;
+
+  if (selected) {                       // 当前控制对象：虚线光环，避免同屏时认错车
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.arc(c.x, c.y, 32, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.translate(c.x, c.y);
+  ctx.rotate(c.heading * Math.PI / 180);
+
+  ctx.fillStyle = "rgba(31,45,61,.15)";
+  ctx.save(); ctx.translate(3, 3); roundRect(-15, -22, 30, 44, 6); ctx.fill(); ctx.restore();
+
+  ctx.fillStyle = s.online === false ? "#7a8a9c" : s.color;
+  roundRect(-15, -22, 30, 44, 6);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,.85)";
+  ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = "rgba(255,255,255,.55)";
+  roundRect(-11, -4, 22, 16, 3); ctx.fill();
+
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath(); ctx.moveTo(0, -20); ctx.lineTo(-8, -8); ctx.lineTo(8, -8); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+function drawLabel(s, selected) {
+  var c = s.car;
+  var speed = (c.speed === null || c.speed === undefined) ? "--" : c.speed;
+  var label = s.name + (s.online === false ? " · 离线" : " · " + speed);
+  ctx.save();
+  ctx.font = (selected ? "bold " : "") + "12px 'Microsoft YaHei', sans-serif";
+  var w = ctx.measureText(label).width + 16, h = 20;
+  var x = Math.min(Math.max(c.x - w / 2, 2), FIELD_W - w - 2);
+  var y = Math.max(c.y - 40, 2);
+  ctx.fillStyle = s.color;
+  ctx.globalAlpha = s.online === false ? 0.6 : (selected ? 1 : 0.88);
+  roundRect(x, y, w, h, 6); ctx.fill();
+  if (selected) {
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#1f2d3d"; ctx.lineWidth = 1.5;
+    roundRect(x, y, w, h, 6); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(label, x + w / 2, y + h / 2 + 0.5);
+  ctx.restore();
+}
+
+function drawIdle() {
+  ctx.fillStyle = "#8b99a9";
+  ctx.font = "16px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("等待小车状态…（确认 app.py 已启动、地址正确）", FIELD_W / 2, FIELD_H / 2);
+  ctx.textAlign = "start";
+}
+
+function render(now) {
+  step(now);
+  drawGrid();
+  var drawn = fleet.filter(function (s) { return !!s.car; });
+  if (!drawn.length) { drawIdle(); requestAnimationFrame(render); return; }
+
+  drawn.forEach(function (s) { drawTrail(s); drawShadowMarker(s); });
+  drawn.forEach(function (s) { if (!isSelected(s)) drawCar(s, false); });
+  drawn.forEach(function (s) { if (isSelected(s)) drawCar(s, true); });
+  drawn.forEach(function (s) { drawLabel(s, isSelected(s)); });
+  requestAnimationFrame(render);
+}
+
+// ---------------------------------------------------------------- AI 语音指令
+var micBtn = $("micBtn"), textCmd = $("textCmd"), parseBtn = $("parseBtn");
+var autoExec = $("autoExec"), voiceStatus = $("voiceStatus");
+var voiceResult = $("voiceResult"), execBtn = $("execBtn");
+var rec = null, recTimer = null, lastCommand = null, voiceBusy = false;
+
+function setVoice(msg, kind) {
+  voiceStatus.className = kind || "";
+  voiceStatus.textContent = msg;
+}
+function micAllowed() {
+  return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia) &&
+         (window.isSecureContext || location.hostname === "localhost" || location.hostname === "127.0.0.1");
+}
+
+// 把多段 Float32 PCM 拼起来，并线性重采样到 16kHz（ASR 要求 16k / 单声道 / 16bit）
+function flatten(chunks, srcRate, dstRate) {
+  var total = 0, i;
+  for (i = 0; i < chunks.length; i++) total += chunks[i].length;
+  var merged = new Float32Array(total), p = 0;
+  for (i = 0; i < chunks.length; i++) { merged.set(chunks[i], p); p += chunks[i].length; }
+  if (srcRate === dstRate || total === 0) return merged;
+  var outLen = Math.round(total * dstRate / srcRate), out = new Float32Array(outLen);
+  for (i = 0; i < outLen; i++) {
+    var pos = i * srcRate / dstRate,
+        i0 = Math.floor(pos), i1 = Math.min(i0 + 1, total - 1), f = pos - i0;
+    out[i] = merged[i0] * (1 - f) + merged[i1] * f;
+  }
+  return out;
+}
+
+function encodeWav(samples, rate) {
+  var len = samples.length, ab = new ArrayBuffer(44 + len * 2), v = new DataView(ab), i;
+  function put(off, s) { for (var j = 0; j < s.length; j++) v.setUint8(off + j, s.charCodeAt(j)); }
+  put(0, "RIFF"); v.setUint32(4, 36 + len * 2, true); put(8, "WAVE");
+  put(12, "fmt "); v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true);
+  v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  put(36, "data"); v.setUint32(40, len * 2, true);
+  var o = 44;
+  for (i = 0; i < len; i++) {
+    var s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    o += 2;
+  }
+  return new Blob([ab], { type: "audio/wav" });
+}
+
+async function startRec() {
+  if (rec || voiceBusy) return;
+  if (!micAllowed()) {
+    setVoice("麦克风不可用：" + location.origin + " 不是安全上下文，浏览器会禁用录音。" +
+             "请改用 http://127.0.0.1:8000/ 打开，或用下方文字输入 / 鸿蒙 APP 采集。", "bad");
+    return;
+  }
+  try {
+    var stream = await navigator.mediaDevices.getUserMedia({
+      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+    });
+    var AC = window.AudioContext || window.webkitAudioContext;
+    var ctx = new AC({ sampleRate: 16000 });
+    var src = ctx.createMediaStreamSource(stream);
+    var proc = ctx.createScriptProcessor(4096, 1, 1);
+    var mute = ctx.createGain();
+    mute.gain.value = 0;
+    var chunks = [];
+    proc.onaudioprocess = function (e) {
+      chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    };
+    src.connect(proc);
+    proc.connect(mute);
+    mute.connect(ctx.destination);
+    rec = { stream: stream, ctx: ctx, src: src, proc: proc, chunks: chunks };
+    micBtn.classList.add("rec");
+    micBtn.textContent = "松开结束（录音中…）";
+    setVoice("正在录音… 说完松开，最长 8 秒。", "");
+    recTimer = setTimeout(stopRec, 8000);
+  } catch (e) {
+    setVoice("无法打开麦克风：" + e.message, "bad");
+  }
+}
+
+function stopRec() {
+  if (!rec) return;
+  clearTimeout(recTimer);
+  var r = rec;
+  rec = null;
+  r.proc.onaudioprocess = null;
+  try { r.src.disconnect(); r.proc.disconnect(); } catch (e) {}
+  r.stream.getTracks().forEach(function (t) { t.stop(); });
+  var blob = encodeWav(flatten(r.chunks, r.ctx.sampleRate, 16000), 16000);
+  r.ctx.close();
+  micBtn.classList.remove("rec");
+  micBtn.textContent = "按住说话";
+  setVoice("录音完成，正在识别…", "");
+  sendVoice(blob);
+}
+
+function sendVoice(input) {
+  if (voiceBusy) return;
+  voiceBusy = true;
+  parseBtn.disabled = true;
+  var opts;
+  if (input instanceof Blob) {
+    var fd = new FormData();
+    fd.append("audio", input, "voice.wav");
+    if (autoExec.checked) fd.append("execute", "true");
+    if (currentDevice()) fd.append("device_id", currentDevice());
+    opts = { method: "POST", body: fd };
+  } else {
+    var payload = { text: input, execute: autoExec.checked };
+    if (currentDevice()) payload.device_id = currentDevice();
+    opts = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    };
+  }
+  var t0 = performance.now();
+  apiFetch(api("/voice_command"), opts)
+    .then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
+    .then(function (res) { showVoiceResult(res.json, Math.round(performance.now() - t0)); })
+    .catch(function (e) { setVoice("请求没发出去：" + e.message + "（后端未启动？地址不对？）", "bad"); })
+    .then(function () { voiceBusy = false; parseBtn.disabled = false; });
+}
+
+function showVoiceResult(j, ms) {
+  voiceResult.style.display = "block";
+  execBtn.style.display = "none";
+  lastCommand = null;
+  var t = j.timings || {};
+  $("vrText").textContent = j.text || "（无）";
+  $("vrParsed").textContent = j.parsed ? JSON.stringify(j.parsed) : "（无）";
+  $("vrTime").textContent = "总计 " + ms + " ms" +
+    (t.asr_ms !== undefined ? " · ASR " + t.asr_ms + " ms" : "") +
+    (t.llm_ms !== undefined ? " · LLM " + t.llm_ms + " ms" : "");
+
+  var stageName = { asr: "语音识别", llm: "大模型解析", validate: "规则裁决",
+                    input: "输入", dispatch: "命令下发", auth: "身份校验（403 越权）" };
+
+  if (!j.ok || !j.command) {
+    $("vrCmd").textContent = "已拒绝";
+    var reason = "[" + (stageName[j.stage] || j.stage || "链路") + "] " + (j.error || "解析失败");
+    setVoice(reason, "bad");
+    addLog("bad", "语音", undefined, null, ms, j.error || reason);
+    return;
+  }
+
+  // 走到这里只说明 ASR → LLM → 裁决 成功；是否真的下发，要看 executed / dispatch_error
+  var cmd = j.command.cmd, speed = j.command.speed;
+  var base = cmd + (speed !== undefined ? " · 速度 " + speed : "");
+  var label = "语音→" + cmd;
+  var d = j.dispatch || {};
+  // 兼容未重启的旧后端：它把下发异常放在 dispatch.error
+  var dispatchErr = j.dispatch_error || d.error ||
+                    (j.stage === "dispatch" ? j.error : null);
+  lastCommand = j.command;
+
+  if (j.executed) {
+    $("vrCmd").textContent = base + " · 已执行（车端回执）";
+    setVoice("解析成功，指令已下发且车端已回执。", "ok");
+    addLog("ok", label, speed, null, ms, null,
+           "<b>" + label + "</b>" + (speed !== undefined ? " " + speed : "") +
+           " · executed=true · id " + String(d.command_id || "").slice(0, 8) + "…");
+  } else if (dispatchErr || j.auto_execute) {
+    var why = dispatchErr || "自动执行未拿到车端回执";
+    $("vrCmd").textContent = base + " · 下发失败";
+    setVoice("[命令下发] " + friendlyError(why), "bad");
+    addLog("bad", label, speed, null, ms, why);
+  } else {
+    $("vrCmd").textContent = base + " · 仅解析，未下发";
+    setVoice("解析成功，仅完成解析、未下发。确认后点下方按钮执行。", "ok");
+    execBtn.style.display = "inline-block";
+    addLog("ok", label, speed, null, ms, null,
+           "<b>" + label + "</b>" + (speed !== undefined ? " " + speed : "") +
+           " · 仅解析，未下发");
+  }
+}
+
+var downEvt = window.PointerEvent ? "pointerdown" : "mousedown";
+var upEvt = window.PointerEvent ? "pointerup" : "mouseup";
+micBtn.addEventListener(downEvt, function (e) { e.preventDefault(); startRec(); });
+document.addEventListener(upEvt, function () { if (rec) stopRec(); });
+parseBtn.addEventListener("click", function () {
+  var t = textCmd.value.trim();
+  if (!t) { setVoice("请先输入一句话，或按住说话录音。", "bad"); return; }
+  setVoice("正在解析…", "");
+  sendVoice(t);
+});
+textCmd.addEventListener("keydown", function (e) { if (e.key === "Enter") parseBtn.click(); });
+execBtn.addEventListener("click", function () {
+  if (lastCommand) send(lastCommand.cmd, lastCommand.speed);
+});
+
+if (!micAllowed()) {
+  setVoice("当前地址 " + location.origin + " 不是安全上下文，麦克风会被浏览器禁用。" +
+           "请用 http://127.0.0.1:8000/ 打开，或用下方文字输入 / 鸿蒙 APP 采集语音。", "bad");
+} else {
+  setVoice("麦克风可用。按住按钮说话，或直接输入文字体验同一条 AI 链路。", "");
+}
+
+// ---------------------------------------------------------------- M2 身份切换
+function saveToken(t) {
+  try {
+    if (t) localStorage.setItem(AUTH_KEY, t);
+    else localStorage.removeItem(AUTH_KEY);
+  } catch (e) {}
+  $("authToken").value = "";
+  $("authToken").placeholder = t ? "已保存身份令牌（可点「退出 / 访客」清除）"
+                                 : "粘贴身份令牌（留空＝访客）";
+  actor = null;
+  authBlocked = false;
+  loadDevices();                     // 重新拉台账与权限，内部会触发一次 poll
+}
+
+$("authApply").addEventListener("click", function () {
+  var t = $("authToken").value.trim();
+  var opts = { cache: "no-store" };
+  if (t) opts.headers = { "X-Auth-Token": t };
+  setAuthBadge("正在校验身份…", "");
+  fetch(api("/whoami"), opts)
+    .then(function (r) {
+      if (r.status === 404) { saveToken(t); return; }   // 旧后端没有 /whoami，忽略 header 仍可用
+      return r.json().then(function (j) {
+        if (!r.ok) { setAuthBadge("✗ " + (j.error || "令牌无效"), "bad"); return; }
+        saveToken(t);
+      });
+    })
+    .catch(function (e) { setAuthBadge("✗ 后端不通：" + e.message, "bad"); });
+});
+$("authClear").addEventListener("click", function () {
+  $("authToken").value = "";
+  saveToken("");
+});
+$("authToken").addEventListener("keydown", function (e) {
+  if (e.key === "Enter") $("authApply").click();
+});
+if (authToken()) $("authToken").placeholder = "已保存身份令牌（可点「退出 / 访客」清除）";
+
+// ================================================================ M3 场地映射 + 任务编排
+function setMission(msg, kind) {
+  var el = $("missionStatus");
+  el.className = kind || "";
+  el.textContent = msg;
+}
+
+function loadField() {
+  if (!window.FieldMap) {
+    $("fieldNote").innerHTML = "<b>field.js 未加载</b>：退回原始网格，不影响控车。";
+    return;
+  }
+  FieldMap.load(api("/field")).then(function (F) {
+    var note = $("fieldNote");
+    if (!F.ready) {
+      note.innerHTML = "<b>旧后端</b>：没有 /field 接口，已退回 50px 网格（控车功能不受影响）。";
+      return;
+    }
+    var comp = (F.cfg && F.cfg.compliance) || {};
+    note.innerHTML = "<b>本地矢量场地</b>：" + esc(F.cfg.name || "") + " · 1 逻辑单位 = " +
+      F.mpu + " m · " + (F.geoReady ? "GCJ-02 已校准，可在「合规底图」页看真实地图"
+                                    : "未校准，后端不输出经纬度") +
+      " · 安全边界" + (F.geofenceEnabled ? "开启（越界拒绝启动任务）" : "关闭") +
+      "<br><span style='color:#9aa7b5'>合规：" + esc(comp.statement || "") + "</span>";
+  });
+}
+
+function loadPresets() {
+  apiFetch(api("/mission/presets"), { cache: "no-store" })
+    .then(function (r) {
+      if (!r.ok) throw new Error("GET /mission/presets -> " + r.status);
+      return r.json();
+    })
+    .then(function (j) {
+      var sel = $("missionSel"), html = "";
+      (j.presets || []).forEach(function (p) {
+        html += '<option value="' + esc(p.key) + '">' + esc(p.name) + " · " +
+                p.steps.length + " 步 · 约 " + (p.est_ms / 1000).toFixed(1) + " s</option>";
+      });
+      sel.innerHTML = html || '<option value="">后端无预设任务</option>';
+      $("missionStart").disabled = !html;
+    })
+    .catch(function (e) {
+      $("missionSel").innerHTML = '<option value="">任务接口不可用</option>';
+      $("missionStart").disabled = true;
+      setMission("任务接口未就绪：" + e.message + "（请确认 app.py 已重启）", "bad");
+    });
+}
+
+var MISSION_STATE_CN = {
+  pending: "等待启动", running: "执行中", cancelling: "取消中",
+  succeeded: "已完成", failed: "失败", cancelled: "已取消"
+};
+
+function renderMissionList(list) {
+  var box = $("missionList");
+  if (!list || !list.length) {
+    box.innerHTML = '<div class="mItem"><div class="md">还没有任务。选一个预设后点「启动任务」，' +
+                    '服务端会逐步下发并等车端回执。</div></div>';
+    return;
+  }
+  var html = "";
+  list.slice(0, 6).forEach(function (m) {
+    var state = m.state || "pending";
+    var running = state === "pending" || state === "running" || state === "cancelling";
+    html += '<div class="mItem"><div class="mt"><b>' + esc(m.name) + "</b>" +
+            '<span style="color:#8896a6">' + esc(m.id) + " · " + esc(m.device_id.slice(-9)) +
+            " · 发起 " + esc(m.actor) + "</span>" +
+            '<span class="state ' + state + '">' + (MISSION_STATE_CN[state] || state) + "</span>" +
+            (running ? '<button class="btn small" data-mid="' + esc(m.id) + '">取消 / 急停</button>' : "") +
+            "</div>" +
+            '<div class="mp"><i style="width:' + (m.progress || 0) + '%"></i></div>' +
+            '<div class="md">进度 ' + (m.index || 0) + "/" + m.total_steps + " 步 · " +
+            (m.progress || 0) + "% · 轨迹点 " + (m.trail || []).length +
+            (m.error ? " · <span style='color:#c02b2b'>" + esc(m.error) + "</span>" : "") +
+            "</div></div>";
+  });
+  box.innerHTML = html;
+  Array.prototype.forEach.call(box.querySelectorAll("[data-mid]"), function (b) {
+    b.addEventListener("click", function () { cancelMission(b.dataset.mid); });
+  });
+}
+
+function pollMissions() {
+  apiFetch(api("/missions"), { cache: "no-store" })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error("" + r.status)); })
+    .then(function (j) { renderMissionList(j.missions); })
+    .catch(function () { /* 旧后端没有任务接口，静默降级 */ });
+}
+
+function cancelMission(mid) {
+  apiFetch(api("/mission/" + encodeURIComponent(mid) + "/cancel"), { method: "POST" })
+    .then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
+    .then(function (res) {
+      setMission(res.json.ok ? "✓ 已请求取消并异步下发 STOP 急停" : "✗ " + (res.json.error || "取消失败"),
+                 res.json.ok ? "ok" : "bad");
+      pollMissions();
+    })
+    .catch(function (e) { setMission("取消请求没发出去：" + e.message, "bad"); });
+}
+
+$("missionStart").addEventListener("click", function () {
+  var preset = $("missionSel").value;
+  if (!preset) { setMission("请先选择预设任务", "bad"); return; }
+  var payload = { preset: preset };
+  if (currentDevice()) payload.device_id = currentDevice();
+  $("missionStart").disabled = true;
+  setMission("正在创建任务…", "");
+  apiFetch(api("/mission"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  })
+    .then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
+    .then(function (res) {
+      var j = res.json;
+      if (!j.ok) throw new Error(j.error || "创建失败（HTTP " + res.status + "）");
+      setMission("✓ 任务 " + j.mission.id + " 已启动：" + j.mission.total_steps +
+                 " 步 · 目标 " + (currentDeviceName || "默认车") +
+                 " · 逐步校验授权与车端回执，结束后自动停车", "ok");
+      addLog("ok", "任务启动", undefined, null, 0, null,
+             "<b>任务启动</b> " + esc(j.mission.name) + " · " + j.mission.total_steps + " 步 · 仅编排，逐步下发后才有回执");
+      pollMissions();
+    })
+    .catch(function (e) { setMission("✗ " + friendlyError(e.message), "bad"); })
+    .then(function () { $("missionStart").disabled = false; });
+});
+
+$("missionCancel").addEventListener("click", function () {
+  var running = null;
+  apiFetch(api("/missions"), { cache: "no-store" })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      (j.missions || []).some(function (m) {
+        if (m.device_id === currentDevice() && (m.state === "running" || m.state === "pending")) {
+          running = m.id; return true;
+        }
+        return false;
+      });
+      if (running) cancelMission(running);
+      else setMission("当前控制车辆没有进行中的任务。", "");
+    })
+    .catch(function () { setMission("读取任务列表失败", "bad"); });
+});
+
+$("missionAbort").addEventListener("click", function () {
+  apiFetch(api("/mission/abort_all"), { method: "POST" })
+    .then(function (r) { return r.json().then(function (j) { return { status: r.status, json: j }; }); })
+    .then(function (res) {
+      setMission(res.json.ok ? "✓ 一键全停：已取消 " + res.json.count + " 个任务并下发急停"
+                             : "✗ " + (res.json.error || "需要管理员令牌"), res.json.ok ? "ok" : "bad");
+      pollMissions();
+    })
+    .catch(function (e) { setMission("全停请求没发出去：" + e.message, "bad"); });
+});
+
+backendInput.addEventListener("change", function () { loadField(); loadPresets(); });
+
+loadField();
+loadPresets();
+pollMissions();
+setInterval(pollMissions, 1500);
+
+loadDevices();                       // 拉台账 -> 建状态容器 -> 首次 poll
+setInterval(poll, POLL_MS);
+requestAnimationFrame(render);
+</script>
+</body>
+</html>

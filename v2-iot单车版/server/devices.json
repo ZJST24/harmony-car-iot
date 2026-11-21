@@ -1,0 +1,24 @@
+{
+  "_comment": "设备台账（M1 多车）。只存元数据，绝不写 AK/SK 或设备密钥——GET /devices 会把这份数据发给前端。新增设备：先在 IoTDA 同一产品下注册，再加一条；enabled=false 可临时摘掉一台车。",
+  "default": "6aeedf21cbb0cf6bb995299d_mycar_001",
+  "devices": [
+    {
+      "device_id": "6aeedf21cbb0cf6bb995299d_mycar_001",
+      "name": "1 号车",
+      "node_id": "mycar_001",
+      "kind": "simulator",
+      "group": "课堂演示",
+      "enabled": true,
+      "note": "原单车，对应 car_mqtt_client_001.py"
+    },
+    {
+      "device_id": "6aeedf21cbb0cf6bb995299d_mycar_002",
+      "name": "2 号车",
+      "node_id": "mycar_002",
+      "kind": "simulator",
+      "group": "课堂演示",
+      "enabled": true,
+      "note": "M1 新增（2026-11-08 应用侧 API 注册），对应 car_mqtt_client_002.py"
+    }
+  ]
+}
